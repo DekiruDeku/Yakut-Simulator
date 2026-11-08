@@ -6,6 +6,12 @@
 
 В Rider открывайте `YakutSimulator/YakutSimulator.uproject`. Настройка встроенного .NET 10 описана в инструкции ниже.
 
-Рыболовный прототип: [сборка уровня, управление и проверка](Docs/FishingSceneSetup.ru.md).
+Рыбалка переведена на общую архитектуру мини-игр. Стартовый уровень — `/Game/MiniGames/Fishing/Maps/L_Fishing`, настройки — `DA_Fishing_Default`, последовательность — `ST_Fishing_Default`.
 
-Диагностика взаимодействий: категория `LogFishing` в Output Log, команда `Fishing.DumpState`. [Описание событий и причин отказа](Docs/FishingSceneSetup.ru.md#подробный-журнал-событий).
+[Инструкция дизайнера: сборка уровня, меши, параметры, StateTree и управление](Docs/MiniGameDesignerGuide.ru.md).
+
+[Архитектура и критерии проверки](Docs/MiniGameArchitecturePlan.ru.md). Общие классы находятся в `Source/YakutSimulator/{Public,Private}/Common`, механики рыбалки — в `Fishing`, редакторские инструменты и тесты — в модуле `YakutSimulatorEditor`.
+
+Диагностика: `LogMiniGame`, `LogInteraction`, `LogFishing`; команды `MiniGame.DumpState`, `Fishing.DumpState`. Автотесты в Session Frontend → Automation → `Yakut.MiniGames`.
+
+Собранная игра: `Start-YakutSimulator.ps1 -Packaged`; с симулятором: `Start-YakutSimulator.ps1 -Simulator -Packaged`. [Итоги миграции и проверки](Docs/MiniGameArchitectureImplementation.ru.md).

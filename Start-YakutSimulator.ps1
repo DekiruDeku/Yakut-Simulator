@@ -1,4 +1,4 @@
-﻿param([switch]$Simulator)
+﻿param([switch]$Simulator, [switch]$Packaged)
 
 $ErrorActionPreference = 'Stop'
 $projectFile = Join-Path $PSScriptRoot 'YakutSimulator\YakutSimulator.uproject'
@@ -7,16 +7,18 @@ $engineVersion = [string]$projectInfo.EngineAssociation
 $engineRegistry = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\EpicGames\Unreal Engine\$engineVersion" -ErrorAction SilentlyContinue
 $engineDirectory = if ($engineRegistry.InstalledDirectory) { $engineRegistry.InstalledDirectory } else { Join-Path $env:ProgramFiles "Epic Games\UE_$engineVersion" }
 $editorFile = Join-Path $engineDirectory 'Engine\Binaries\Win64\UnrealEditor.exe'
-if (-not (Test-Path -LiteralPath $editorFile -PathType Leaf)) { throw "Unreal Editor $engineVersion не найден: $editorFile" }
-$alreadyOpen = Get-CimInstance Win32_Process -Filter "Name='UnrealEditor.exe'" | Where-Object {
-    $_.CommandLine -and $_.CommandLine.IndexOf($projectFile, [StringComparison]::OrdinalIgnoreCase) -ge 0
+$packagedRoot = Join-Path $PSScriptRoot 'YakutSimulator\Saved\Packaged\MiniGames\Windows'
+if ($Packaged) { $editorFile = Join-Path $packagedRoot 'YakutSimulator.exe' }
+if (-not (Test-Path -LiteralPath $editorFile -PathType Leaf)) { throw "Приложение не найдено: $editorFile" }
+$alreadyOpen = Get-CimInstance Win32_Process -Filter "Name='UnrealEditor.exe' OR Name='YakutSimulator.exe'" | Where-Object {
+    ($_.CommandLine -and $_.CommandLine.IndexOf($projectFile, [StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+    ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($packagedRoot + '\', [StringComparison]::OrdinalIgnoreCase))
 }
-if ($alreadyOpen) { throw 'Сначала закройте Unreal Editor этого проекта, чтобы не запускать две VR-сессии.' }
-$editorArguments = @(('"{0}"' -f $projectFile))
-if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'YakutSimulator\Content\Fishing\Maps\L_FishingPrototype.umap')) {
-    $editorArguments += '/Game/Fishing/Maps/L_FishingPrototype'
+if ($alreadyOpen) { throw 'Сначала закройте редактор или собранную игру этого проекта, чтобы не запускать две VR-сессии.' }
+$editorArguments = @()
+if (-not $Packaged) {
+    $editorArguments += ('"{0}"' -f $projectFile), '-ModelContextProtocolStartServer', '-ModelContextProtocolPort=8000'
 }
-$editorArguments += '-ModelContextProtocolStartServer', '-ModelContextProtocolPort=8000'
 if ($Simulator) {
     # shortcut: runtime 69 restores input here; retest 207.1+ before using newer Meta features.
     $runtimeCache = Join-Path $PSScriptRoot 'YakutSimulator\Saved\MetaXRSimulator\69'
@@ -37,6 +39,10 @@ if ($Simulator) {
     }
     # Meta SDK 207 binds xrShareSpacesMETA, which runtime 69 does not provide.
     $editorArguments += '-DisablePlugins=OculusXR'
+    if ($Packaged) {
+        # shortcut: runtime 69/DX12 rejects speculative PSOs here; retest precaching with newer runtimes/drivers.
+        $editorArguments += '-ini:Engine:[SystemSettings]:r.PSOPrecaching=0'
+    }
 }
 $previousRuntime = $env:XR_RUNTIME_JSON
 $previousSimulatorConfig = $env:META_XRSIM_CONFIG_JSON
@@ -45,7 +51,8 @@ try {
         $env:XR_RUNTIME_JSON = $runtimeManifest
         $env:META_XRSIM_CONFIG_JSON = Join-Path $runtimeDirectory 'config\sim_core_configuration.json'
     }
-    Start-Process -FilePath $editorFile -ArgumentList $editorArguments
+    if ($editorArguments.Count) { Start-Process -FilePath $editorFile -ArgumentList $editorArguments }
+    else { Start-Process -FilePath $editorFile }
 } finally {
     $env:XR_RUNTIME_JSON = $previousRuntime
     $env:META_XRSIM_CONFIG_JSON = $previousSimulatorConfig

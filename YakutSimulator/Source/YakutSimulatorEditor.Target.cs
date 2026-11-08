@@ -10,6 +10,6 @@ public class YakutSimulatorEditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 
-		ExtraModuleNames.AddRange( new string[] { "YakutSimulator" } );
+		ExtraModuleNames.AddRange( new string[] { "YakutSimulator", "YakutSimulatorEditor" } );
 	}
 }
