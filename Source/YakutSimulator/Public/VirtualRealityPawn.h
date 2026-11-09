@@ -8,7 +8,8 @@
 class AWorkItem;
 class UCameraComponent;
 class UInputAction;
-class UMainMenuWidget;
+class UInputMappingContext;
+class UUserWidget;
 class UMotionControllerComponent;
 class UStaticMeshComponent;
 class UWidgetComponent;
@@ -58,6 +59,42 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interaction")
     float GrabRadius = 30;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputMappingContext> InteractionMapping;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> GrabLeftAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> GrabRightAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> UseLeftAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> UseRightAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> TeleportAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> SnapTurnAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> ToggleMenuAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> CancelAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> DesktopMoveAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> DesktopLookAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+    TObjectPtr<UInputAction> TeleportHoldAction;
+
     UFUNCTION(BlueprintCallable, Category="Interaction")
     bool TryGrabItem(bool bLeftHand);
 
@@ -71,7 +108,7 @@ public:
     void ReleaseAllItems();
 
     UFUNCTION(BlueprintCallable, Category="Interface")
-    void ShowMenu(UMainMenuWidget* Menu, bool bShow);
+    void ShowMenu(UUserWidget* Menu, bool bShow);
 
     UFUNCTION(BlueprintCallable, Category="Movement")
     void CancelTeleport();
@@ -103,9 +140,6 @@ private:
 
     UPROPERTY()
     TObjectPtr<UStaticMeshComponent> TeleportMarker;
-
-    UPROPERTY()
-    TArray<TObjectPtr<UInputAction>> InputActions;
 
     FHandMotionState LeftMotion;
     FHandMotionState RightMotion;

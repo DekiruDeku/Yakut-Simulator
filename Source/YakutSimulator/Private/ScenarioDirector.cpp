@@ -1,12 +1,20 @@
 #include "ScenarioDirector.h"
 
 #include "EngineUtils.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "WorkItem.h"
 #include "WorkOperationComponent.h"
 
 void AScenarioDirector::BeginPlay()
 {
     Super::BeginPlay();
+    FText ConfigurationError;
+    if (!ValidateSteps(ConfigurationError))
+    {
+        UKismetSystemLibrary::PrintString(this, ConfigurationError.ToString(), true, true, FLinearColor::Red);
+        return;
+    }
+    ActorSpawnSubscription = GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &AScenarioDirector::RegisterSpawnedActor));
     for (const FScenarioStepDefinition& Step : Steps)
     {
         if (Step.Operation)
@@ -19,6 +27,86 @@ void AScenarioDirector::BeginPlay()
         RegisterItem(*ItemIterator);
     }
     RefreshAvailability();
+}
+
+void AScenarioDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    GetWorld()->RemoveOnActorSpawnedHandler(ActorSpawnSubscription);
+    Super::EndPlay(EndPlayReason);
+}
+
+void AScenarioDirector::RegisterSpawnedActor(AActor* Actor)
+{
+    if (AWorkItem* Item = Cast<AWorkItem>(Actor))
+    {
+        RegisterItem(Item);
+    }
+}
+
+bool AScenarioDirector::ValidateSteps(FText& Error) const
+{
+    TSet<FName> StepIdentifiers;
+    TSet<UWorkOperationComponent*> Operations;
+    for (const FScenarioStepDefinition& Step : Steps)
+    {
+        if (Step.StepIdentifier.IsNone() || StepIdentifiers.Contains(Step.StepIdentifier))
+        {
+            Error = FText::FromString(TEXT("Scenario step identifiers must be nonempty and unique"));
+            return false;
+        }
+        if (!Step.Operation || Operations.Contains(Step.Operation))
+        {
+            Error = FText::FromString(TEXT("Each scenario step must have its own operation component"));
+            return false;
+        }
+        StepIdentifiers.Add(Step.StepIdentifier);
+        Operations.Add(Step.Operation);
+    }
+    for (const FScenarioStepDefinition& Step : Steps)
+    {
+        for (const FName RequiredStep : Step.RequiredSteps)
+        {
+            if (!StepIdentifiers.Contains(RequiredStep))
+            {
+                Error = FText::FromString(FString::Format(TEXT("Scenario dependency does not exist: {0}"), { RequiredStep.ToString() }));
+                return false;
+            }
+        }
+    }
+    TSet<FName> ResolvedSteps;
+    bool bMadeProgress = true;
+    while (bMadeProgress)
+    {
+        bMadeProgress = false;
+        for (const FScenarioStepDefinition& Step : Steps)
+        {
+            if (ResolvedSteps.Contains(Step.StepIdentifier))
+            {
+                continue;
+            }
+            bool bDependenciesResolved = true;
+            for (const FName RequiredStep : Step.RequiredSteps)
+            {
+                if (!ResolvedSteps.Contains(RequiredStep))
+                {
+                    bDependenciesResolved = false;
+                    break;
+                }
+            }
+            if (bDependenciesResolved)
+            {
+                ResolvedSteps.Add(Step.StepIdentifier);
+                bMadeProgress = true;
+            }
+        }
+    }
+    if (ResolvedSteps.Num() != Steps.Num())
+    {
+        Error = FText::FromString(TEXT("Scenario dependencies contain a cycle"));
+        return false;
+    }
+    Error = FText::GetEmpty();
+    return true;
 }
 
 void AScenarioDirector::RegisterItem(AWorkItem* Item)

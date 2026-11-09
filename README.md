@@ -16,6 +16,12 @@
 & 'M:/UE/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Win64-DebugGame.exe' 'M:/Prototypes/Yakut-Simulator/YakutSimulator.uproject' -nohmd
 ```
 
+Открытие `YakutSimulator.uproject` двойным щелчком запускает Development-редактор. Он использует отдельную DLL проекта, которую сборка DebugGame не обновляет. После изменений исходников для такого запуска также соберите Development:
+
+```powershell
+& 'M:/UE/UE_5.8/Engine/Build/BatchFiles/Build.bat' YakutSimulatorEditor Win64 Development '-Project=M:/Prototypes/Yakut-Simulator/YakutSimulator.uproject' -WaitMutex -NoHotReloadFromIDE
+```
+
 Начальная карта — `/Game/Prototype/Maps/L_MainMenu`. Нажмите Play и выберите карту в меню. Из рабочей сцены меню позволяет продолжить, открыть другую карту или вернуться на начальную карту.
 
 ## Управление
@@ -38,7 +44,7 @@
 
 ## Архитектура
 
-`AVirtualRealityPawn` обрабатывает ввод и трекинг. `AWorkItem` управляет предметом, захватом и использованием. `UInteractionZoneComponent` проверяет размещение. `UWorkOperationComponent` хранит состояние операции. `AScenarioDirector` связывает операции и зависимости шагов. `WBP_ScenarioPanel` и `WBP_MainMenu` наследуют нативные виджеты.
+`AVirtualRealityPawn` обрабатывает ввод и трекинг. `AWorkItem` управляет предметом, захватом и использованием. `UInteractionZoneComponent` проверяет размещение. `UWorkOperationComponent` хранит состояние операции. `AScenarioDirector` связывает операции и зависимости шагов. `WBP_MainMenu`, `WBP_MapEntry` и `WBP_ScenarioPanel` наследуются от стандартного `UUserWidget`. Вёрстка и обработчики находятся в UMG Blueprint; собственных C++-классов виджетов нет.
 
 - `Source/YakutSimulator/Public` и `Private` — исходники общей базы.
 - `Content/Prototype/Input` — Input Actions и общий Input Mapping Context.
@@ -83,3 +89,18 @@
 Историческая проверка старого шаблона подтверждала запуск VR Preview, трекинг головы и контроллеров и открытие меню. Она не подтверждает поведение нового C++-прототипа. Результаты новых проверок учитываются отдельно.
 
 Документация: [Meta XR Simulator](https://developers.meta.com/vr/documentation/unreal/xrsim-intro/).
+
+## Явные связи между объектами
+
+Ввод задаётся именованными свойствами AVirtualRealityPawn: InteractionMapping, GrabLeftAction, GrabRightAction, UseLeftAction, UseRightAction и остальные действия. Их значения по умолчанию назначены в конструкторе; обработчики и автотесты используют непосредственно эти свойства. Индексного массива действий и загрузки по вычисляемым именам больше нет.
+
+MainMenuClass и ScenarioPanelClass задаются в контроллере. MainMenuMap задаётся в игровом режиме и по умолчанию берётся из GameDefaultMap. Панель читает конкретного директора из свойства ScenarioDirector владеющего контроллера, установленного до CreateWidget. Несколько настроенных директоров считаются неоднозначной конфигурацией.
+
+ValidateSteps проверяет уникальность идентификаторов, отдельные операции, существование зависимостей и отсутствие циклов. Предметы, созданные после BeginPlay, регистрируются автоматически. При пересечении нескольких зон размещения выбирается ближайшая подходящая зона.
+
+Проверка до переноса UI, 2026-11-09: сборки DebugGame и Development успешны; два расширенных автотеста на DebugGame прошли. Проверены обратный порядок шагов, позднее создание предмета, передача директора панели, ближайшая зона и переходы через меню. Функция создания mapping проверена на временных объектах без сохранения ассетов. Физический шлем и packaged runtime в этот прогон не входили. Свидетельства находятся в Saved/Verification/InputAudit.
+
+Меню создаёт WBP_MapEntry для каждой записи ScenarioMaps. Каждая кнопка хранит собственный FScenarioMapEntry и передаёт soft-ссылку карты в OpenScenarioMap. Ошибки меню обновляются по OnMenuErrorChanged, панель — по OnScenarioChanged. Tick для обновления текста не используется. Scripts/CreatePrototypeUI.py пересобирает только три UI-ассета и не изменяет карты; перед повторной генерацией сохраняйте резервные копии этих пакетов.
+
+
+Проверка переноса UI, 2026-11-09: DebugGame и Development собраны; все три Widget Blueprint скомпилированы. В desktop PIE через кнопки UMG открыты обе карты, проверены продолжение игры, повторное открытие меню, ошибка недоступной карты и возврат в L_MainMenu. Полный набор автотестов повторно не запускался. Итог находится в Saved/Verification/InputAudit/UMGSummary.json.

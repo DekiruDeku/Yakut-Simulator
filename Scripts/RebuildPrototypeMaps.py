@@ -24,13 +24,15 @@ def Material(Name, Color, Roughness=0.75, Metallic=0.0):
     return Result
 
 
-def Spawn(ActorClass, Name, Position, Rotation=(0, 0, 0)):
-    Actor = ActorSubsystem.spawn_actor_from_class(ActorClass, unreal.Vector(*Position), unreal.Rotator(pitch=Rotation[0], yaw=Rotation[1], roll=Rotation[2]))
+def Spawn(ActorClass, Name, Position, Rotation=None):
+    if Rotation is None:
+        Rotation = unreal.Rotator()
+    Actor = ActorSubsystem.spawn_actor_from_class(ActorClass, unreal.Vector(*Position), Rotation)
     Actor.set_actor_label(Name)
     return Actor
 
 
-def Shape(Name, Position, Scale, Surface, Geometry="Cube", Rotation=(0, 0, 0)):
+def Shape(Name, Position, Scale, Surface, Geometry="Cube", Rotation=None):
     Actor = Spawn(unreal.StaticMeshActor, Name, Position, Rotation)
     Actor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/" + Geometry))
     Actor.static_mesh_component.set_material(0, Surface)
@@ -79,7 +81,7 @@ def Prepare(MapName):
     }.items():
         Settings.set_editor_property(Property, Value)
     Exposure.set_editor_property("settings", Settings)
-    Sun = Spawn(unreal.DirectionalLight, "Sunlight", (0, 0, 600), (-48, -35, 0))
+    Sun = Spawn(unreal.DirectionalLight, "Sunlight", (0, 0, 600), unreal.Rotator(pitch=-48, yaw=-35))
     Sun.light_component.set_editor_property("intensity", 4.0)
     Sun.light_component.set_editor_property("atmosphere_sun_light", True)
     Sun.light_component.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
@@ -135,9 +137,9 @@ Shape("CabinFrontStripe", (467, 0, 80), (0.015, 4.6, 0.32), Teal)
 Shape("Mast", (710, 0, 395), (0.12, 0.12, 2.4), Steel, "Cylinder")
 Shape("MastCrossbar", (710, 0, 475), (0.06, 2.8, 0.06), Steel)
 Shape("WinchFoundation", (280, -245, 24), (1.65, 1.75, 0.48), Teal)
-Shape("WinchDrum", (280, -245, 92), (0.9, 0.9, 1.3), Rubber, "Cylinder", (0, 0, 90))
+Shape("WinchDrum", (280, -245, 92), (0.9, 0.9, 1.3), Rubber, "Cylinder", unreal.Rotator(roll=90))
 for OffsetY in [-70, 70]:
-    Shape("WinchFlange", (280, -245 + OffsetY, 92), (1.45, 1.45, 0.06), Steel, "Cylinder", (0, 0, 90))
+    Shape("WinchFlange", (280, -245 + OffsetY, 92), (1.45, 1.45, 0.06), Steel, "Cylinder", unreal.Rotator(roll=90))
 for SupportY in [-325, -165]:
     Shape("WinchSupport", (280, SupportY, 60), (0.30, 0.14, 1.1), DarkSteel)
 for CrateIndex in range(3):
@@ -167,7 +169,7 @@ Shape("WindowDivider", (250, -420, 205), (0.06, 0.06, 1.35), Ivory)
 Shape("WindowSill", (250, -412, 133), (3.7, 0.30, 0.06), Ivory)
 Shape("ExamCouchBase", (500, 280, 40), (2.2, 0.8, 0.65), Ivory)
 Shape("ExamCouch", (500, 280, 80), (2.3, 0.88, 0.20), Fabric)
-Shape("ExamHeadrest", (610, 280, 98), (0.55, 0.88, 0.16), Fabric, "Cube", (0, 0, 18))
+Shape("ExamHeadrest", (610, 280, 98), (0.55, 0.88, 0.16), Fabric, "Cube", unreal.Rotator(roll=18))
 for CabinetY in [-260, -130]:
     Shape("StorageCabinet", (835, CabinetY, 110), (0.8, 1.1, 2.2), Ivory)
     Shape("CabinetDoor", (791, CabinetY, 112), (0.04, 1.02, 2.08), White)
@@ -187,7 +189,7 @@ WorkTable((110, 0, 90))
 Items()
 for LightPosition in [(180, -80, 290), (600, 100, 290)]:
     Shape("CeilingLight", LightPosition, (1.4, 0.7, 0.04), Ivory)
-    Lamp = Spawn(unreal.RectLight, "RoomLight", LightPosition, (-90, 0, 0))
+    Lamp = Spawn(unreal.RectLight, "RoomLight", LightPosition, unreal.Rotator(pitch=-90))
     Lamp.light_component.set_editor_property("intensity_units", unreal.LightUnits.LUMENS)
     Lamp.light_component.set_editor_property("intensity", 180)
     Lamp.light_component.set_editor_property("source_width", 140)

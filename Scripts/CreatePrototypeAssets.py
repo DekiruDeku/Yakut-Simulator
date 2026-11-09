@@ -46,13 +46,16 @@ def CreateMaterial(Name, Color):
 def AddMapping(Context, Action, KeyName, Modifiers=None):
     Key = unreal.Key()
     Key.set_editor_property("key_name", KeyName)
-    Context.map_key(Action, Key)
+    Mapping = unreal.EnhancedActionKeyMapping()
+    Mapping.set_editor_property("action", Action)
+    Mapping.set_editor_property("key", Key)
     if Modifiers:
-        MappingData = Context.get_editor_property("default_key_mappings")
-        Mappings = MappingData.get_editor_property("mappings")
-        Mappings[-1].set_editor_property("modifiers", Modifiers)
-        MappingData.set_editor_property("mappings", Mappings)
-        Context.set_editor_property("default_key_mappings", MappingData)
+        Mapping.set_editor_property("modifiers", Modifiers)
+    MappingData = Context.get_editor_property("default_key_mappings")
+    Mappings = MappingData.get_editor_property("mappings")
+    Mappings.append(Mapping)
+    MappingData.set_editor_property("mappings", Mappings)
+    Context.set_editor_property("default_key_mappings", MappingData)
 
 
 def Swizzle():
@@ -122,12 +125,11 @@ AddMapping(Context, Actions["IA_DesktopLook"], "Mouse2D")
 unreal.EditorAssetLibrary.save_loaded_asset(Context)
 
 CreateBlueprint("BP_WorkItem", unreal.WorkItem, Root + "/Blueprints")
-for Name, ParentClass in [("WBP_MainMenu", unreal.MainMenuWidget), ("WBP_ScenarioPanel", unreal.ScenarioPanelWidget)]:
-    Factory = unreal.WidgetBlueprintFactory()
-    Factory.set_editor_property("parent_class", ParentClass)
-    Blueprint = CreateAsset(Name, Root + "/UI", unreal.WidgetBlueprint, Factory)
-    unreal.BlueprintEditorLibrary.compile_blueprint(Blueprint)
-    unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
+UIAssetNames = ["WBP_MainMenu", "WBP_ScenarioPanel", "WBP_MapEntry"]
+if not all(unreal.EditorAssetLibrary.does_asset_exist(Root + "/UI/" + Name) for Name in UIAssetNames):
+    UIScriptPath = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir() + "Scripts/CreatePrototypeUI.py")
+    with open(UIScriptPath, encoding="utf-8-sig") as UIScriptFile:
+        exec(compile(UIScriptFile.read(), UIScriptPath, "exec"), {})
 
 FloorMaterial = CreateMaterial("M_Floor", (0.12, 0.15, 0.19))
 WallMaterial = CreateMaterial("M_Wall", (0.42, 0.48, 0.55))
@@ -137,8 +139,10 @@ ClinicMaterial = CreateMaterial("M_ClinicItem", (0.78, 0.66, 0.16))
 PlacementMaterial = CreateMaterial("M_Placement", (0.05, 0.65, 0.45))
 
 
-def Spawn(ActorClass, Name, Position, Rotation=(0, 0, 0)):
-    Actor = ActorSubsystem.spawn_actor_from_class(ActorClass, unreal.Vector(*Position), unreal.Rotator(*Rotation))
+def Spawn(ActorClass, Name, Position, Rotation=None):
+    if Rotation is None:
+        Rotation = unreal.Rotator()
+    Actor = ActorSubsystem.spawn_actor_from_class(ActorClass, unreal.Vector(*Position), Rotation)
     Actor.set_actor_label(Name)
     return Actor
 
@@ -171,7 +175,7 @@ for MapName, Title, ItemMaterial in MapDefinitions:
     Geometry("LeftWall", (80, -490, 140), (10, 0.15, 3), WallMaterial)
     Geometry("RightWall", (80, 490, 140), (10, 0.15, 3), WallMaterial)
     Spawn(unreal.PlayerStart, "PlayerStart", (0, 0, 0))
-    Sun = Spawn(unreal.DirectionalLight, "Daylight", (0, 0, 400), (-55, -35, 0))
+    Sun = Spawn(unreal.DirectionalLight, "Daylight", (0, 0, 400), unreal.Rotator(pitch=-55, yaw=-35))
     Sun.light_component.set_editor_property("intensity", 5)
     Spawn(unreal.SkyAtmosphere, "SkyAtmosphere", (0, 0, 0))
     Sky = Spawn(unreal.SkyLight, "AmbientLight", (0, 0, 300))
@@ -200,3 +204,4 @@ for MapName, Title, ItemMaterial in MapDefinitions:
 
 LevelSubsystem.load_level(Root + "/Maps/L_MainMenu")
 unreal.log("Prototype assets are ready")
+

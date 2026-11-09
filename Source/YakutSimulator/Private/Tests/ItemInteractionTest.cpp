@@ -12,10 +12,35 @@
 #include "MotionControllerComponent.h"
 #include "PlacementStation.h"
 #include "PrototypePlayerController.h"
+#include "PrototypeGameMode.h"
+#include "ScenarioDirector.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 #include "VirtualRealityPawn.h"
 #include "WorkItem.h"
 #include "WorkOperationComponent.h"
 #include "Tests/AutomationEditorCommon.h"
+
+enum class EItemInteractionPhase : uint8
+{
+    UseWithoutGrab,
+    ReleaseTrigger,
+    GrabRight,
+    UseRight,
+    HoldRightUse,
+    GrabLeft,
+    UseLeft,
+    OpenMenu,
+    UseWhileMenuOpen,
+    CloseMenu,
+    ReleaseLeft,
+    MoveHeldItem,
+    ThrowRight,
+    VerifyOperations,
+    VerifyScenarioFlow,
+    VerifyPlacement,
+    Complete
+};
 
 class FItemInteractionCommand : public IAutomationLatentCommand
 {
@@ -70,29 +95,47 @@ public:
             Test->AddError(TEXT("The PIE world was destroyed during the interaction test"));
             return true;
         }
-        if (Phase >= 2 && Phase <= 11)
+        if (Phase == EItemInteractionPhase::GrabRight
+            || Phase == EItemInteractionPhase::UseRight
+            || Phase == EItemInteractionPhase::HoldRightUse
+            || Phase == EItemInteractionPhase::GrabLeft
+            || Phase == EItemInteractionPhase::UseLeft
+            || Phase == EItemInteractionPhase::OpenMenu
+            || Phase == EItemInteractionPhase::UseWhileMenuOpen
+            || Phase == EItemInteractionPhase::CloseMenu
+            || Phase == EItemInteractionPhase::ReleaseLeft
+            || Phase == EItemInteractionPhase::MoveHeldItem)
         {
-            Inject(TEXT("IA_GrabRight"), FInputActionValue(1.0f));
+            Inject(PlayerPawn->GrabRightAction, FInputActionValue(1.0f));
         }
-        if (Phase >= 5 && Phase <= 9)
+        if (Phase == EItemInteractionPhase::GrabLeft
+            || Phase == EItemInteractionPhase::UseLeft
+            || Phase == EItemInteractionPhase::OpenMenu
+            || Phase == EItemInteractionPhase::UseWhileMenuOpen
+            || Phase == EItemInteractionPhase::CloseMenu)
         {
-            Inject(TEXT("IA_GrabLeft"), FInputActionValue(1.0f));
+            Inject(PlayerPawn->GrabLeftAction, FInputActionValue(1.0f));
         }
-        if (Phase == 0 || Phase == 3 || Phase == 4 || Phase == 8)
+        if (Phase == EItemInteractionPhase::UseWithoutGrab
+            || Phase == EItemInteractionPhase::UseRight
+            || Phase == EItemInteractionPhase::HoldRightUse
+            || Phase == EItemInteractionPhase::UseWhileMenuOpen)
         {
-            Inject(TEXT("IA_UseRight"), FInputActionValue(1.0f));
+            Inject(PlayerPawn->UseRightAction, FInputActionValue(1.0f));
         }
-        if (Phase == 6)
+        if (Phase == EItemInteractionPhase::UseLeft)
         {
-            Inject(TEXT("IA_UseLeft"), FInputActionValue(1.0f));
+            Inject(PlayerPawn->UseLeftAction, FInputActionValue(1.0f));
         }
-        if (Phase == 7 || Phase == 9)
+        if (Phase == EItemInteractionPhase::OpenMenu
+            || Phase == EItemInteractionPhase::CloseMenu)
         {
-            Inject(TEXT("IA_ToggleMenu"), FInputActionValue(true));
+            Inject(PlayerPawn->ToggleMenuAction, FInputActionValue(true));
         }
-        if (Phase == 11 || Phase == 12)
+        if (Phase == EItemInteractionPhase::MoveHeldItem
+            || Phase == EItemInteractionPhase::ThrowRight)
         {
-            Inject(TEXT("IA_DesktopMove"), FInputActionValue(FVector2D(0, 1)));
+            Inject(PlayerPawn->DesktopMoveAction, FInputActionValue(FVector2D(0, 1)));
         }
         if (FPlatformTime::Seconds() - PhaseStarted < 0.15)
         {
@@ -101,77 +144,160 @@ public:
 
         switch (Phase)
         {
-            case 0:
+            case EItemInteractionPhase::UseWithoutGrab:
             {
                 Test->TestEqual(TEXT("Trigger without a held item does not use it"), PrimaryItem->UseCount, 0);
+                Phase = EItemInteractionPhase::ReleaseTrigger;
                 break;
             }
-            case 2:
+            case EItemInteractionPhase::GrabRight:
             {
                 Test->TestTrue(TEXT("Right Grip picks up the nearest item"), PlayerPawn->RightItem == PrimaryItem && PrimaryItem->bIsHeld);
                 Test->TestFalse(TEXT("The other hand cannot take an already held item"), PrimaryItem->TryGrab(PlayerPawn->LeftHand));
+                Phase = EItemInteractionPhase::UseRight;
                 break;
             }
-            case 3:
+            case EItemInteractionPhase::UseRight:
             {
                 Test->TestEqual(TEXT("Trigger starts use once"), PrimaryItem->UseCount, 1);
                 Test->TestTrue(TEXT("Use produces visible feedback"), PrimaryItem->UseIndicator->IsVisible());
+                Phase = EItemInteractionPhase::HoldRightUse;
                 break;
             }
-            case 4:
+            case EItemInteractionPhase::HoldRightUse:
             {
                 Test->TestEqual(TEXT("Holding Trigger does not repeatedly restart use"), PrimaryItem->UseCount, 1);
+                Phase = EItemInteractionPhase::GrabLeft;
                 break;
             }
-            case 5:
+            case EItemInteractionPhase::GrabLeft:
             {
                 Test->TestTrue(TEXT("Both hands hold independent items"), PlayerPawn->LeftItem == SecondaryItem && PlayerPawn->RightItem == PrimaryItem);
                 Test->TestFalse(TEXT("Releasing Trigger ends use"), PrimaryItem->bIsUsing);
+                Phase = EItemInteractionPhase::UseLeft;
                 break;
             }
-            case 6:
+            case EItemInteractionPhase::UseLeft:
             {
                 Test->TestEqual(TEXT("Left Trigger uses the left item"), SecondaryItem->UseCount, 1);
+                Phase = EItemInteractionPhase::OpenMenu;
                 break;
             }
-            case 7:
+            case EItemInteractionPhase::OpenMenu:
             {
                 Test->TestTrue(TEXT("The menu opens through its Input Action"), Player->bMenuOpen);
                 Test->TestTrue(TEXT("Opening the menu preserves held items"), PrimaryItem->bIsHeld && SecondaryItem->bIsHeld);
                 Test->TestFalse(TEXT("Opening the menu ends tool use"), SecondaryItem->bIsUsing);
+                Phase = EItemInteractionPhase::UseWhileMenuOpen;
                 break;
             }
-            case 8:
+            case EItemInteractionPhase::UseWhileMenuOpen:
             {
                 Test->TestEqual(TEXT("A menu click does not activate the held tool"), PrimaryItem->UseCount, 1);
+                Phase = EItemInteractionPhase::CloseMenu;
                 break;
             }
-            case 9:
+            case EItemInteractionPhase::CloseMenu:
             {
                 Test->TestFalse(TEXT("The menu closes through its Input Action"), Player->bMenuOpen);
+                Phase = EItemInteractionPhase::ReleaseLeft;
                 break;
             }
-            case 10:
+            case EItemInteractionPhase::ReleaseLeft:
             {
                 Test->TestTrue(TEXT("Releasing left Grip frees the left hand"), PlayerPawn->LeftItem == nullptr);
                 Test->TestTrue(TEXT("Released items return to physics"), SecondaryItem->Body->IsSimulatingPhysics());
+                Phase = EItemInteractionPhase::MoveHeldItem;
                 break;
             }
-            case 11:
+            case EItemInteractionPhase::MoveHeldItem:
             {
                 Test->TestTrue(TEXT("Movement Input Action moves the pawn"), FVector::Distance(InitialLocation, PlayerPawn->GetActorLocation()) > 5);
+                Phase = EItemInteractionPhase::ThrowRight;
                 break;
             }
-            case 12:
+            case EItemInteractionPhase::ThrowRight:
             {
                 Test->TestTrue(TEXT("Releasing right Grip frees the right hand"), PlayerPawn->RightItem == nullptr);
                 Test->TestTrue(TEXT("A thrown item simulates physics"), PrimaryItem->Body->IsSimulatingPhysics());
                 Test->TestTrue(TEXT("Throwing transfers horizontal hand velocity"), PrimaryItem->Body->GetPhysicsLinearVelocity().Size2D() > 20);
+                Phase = EItemInteractionPhase::VerifyOperations;
                 break;
             }
-            case 13:
+            case EItemInteractionPhase::VerifyOperations:
             {
                 TestOperation();
+                Phase = EItemInteractionPhase::VerifyScenarioFlow;
+                break;
+            }
+            case EItemInteractionPhase::VerifyScenarioFlow:
+            {
+                AScenarioDirector* Director = World->SpawnActorDeferred<AScenarioDirector>(AScenarioDirector::StaticClass(), FTransform::Identity);
+                UWorkOperationComponent* FirstOperation = NewObject<UWorkOperationComponent>(Director);
+                UWorkOperationComponent* SecondOperation = NewObject<UWorkOperationComponent>(Director);
+                FScenarioStepDefinition FirstStep;
+                FirstStep.StepIdentifier = TEXT("First");
+                FirstStep.Operation = FirstOperation;
+                FScenarioStepDefinition SecondStep;
+                SecondStep.StepIdentifier = TEXT("Second");
+                SecondStep.Operation = SecondOperation;
+                SecondStep.RequiredSteps.Add(FirstStep.StepIdentifier);
+                Director->Steps = { SecondStep, FirstStep };
+                FText ConfigurationError;
+                Test->TestTrue(TEXT("Dependencies do not require array ordering"), Director->ValidateSteps(ConfigurationError));
+                UGameplayStatics::FinishSpawningActor(Director, FTransform::Identity);
+
+                AWorkItem* LateItem = World->SpawnActor<AWorkItem>();
+                LateItem->TryGrab(PlayerPawn->RightHand);
+                LateItem->BeginUse();
+                Test->TestTrue(TEXT("An item spawned after BeginPlay is registered automatically"), FirstOperation->State == EWorkOperationState::Completed);
+                Test->TestTrue(TEXT("A newly unlocked step cannot reuse the same event"), SecondOperation->State == EWorkOperationState::Ready && SecondOperation->CurrentCount == 0);
+                LateItem->EndUse();
+                LateItem->BeginUse();
+                Test->TestEqual(TEXT("Reversed dependency order completes correctly"), Director->GetCompletedStepCount(), 2);
+
+                APrototypeGameMode* GameMode = World->GetAuthGameMode<APrototypeGameMode>();
+                Test->TestTrue(TEXT("The configured director is selected explicitly"), GameMode->FindScenarioDirector() == Director);
+
+                SecondStep.RequiredSteps = { TEXT("Missing") };
+                Director->Steps = { SecondStep, FirstStep };
+                Test->TestFalse(TEXT("Missing dependencies are rejected"), Director->ValidateSteps(ConfigurationError));
+                SecondStep.RequiredSteps = { FirstStep.StepIdentifier };
+                FirstStep.RequiredSteps = { SecondStep.StepIdentifier };
+                Director->Steps = { FirstStep, SecondStep };
+                Test->TestFalse(TEXT("Dependency cycles are rejected"), Director->ValidateSteps(ConfigurationError));
+                FirstStep.RequiredSteps.Reset();
+                SecondStep.StepIdentifier = FirstStep.StepIdentifier;
+                Director->Steps = { FirstStep, SecondStep };
+                Test->TestFalse(TEXT("Duplicate step identifiers are rejected"), Director->ValidateSteps(ConfigurationError));
+                SecondStep.StepIdentifier = TEXT("Second");
+                SecondStep.Operation = FirstOperation;
+                Director->Steps = { FirstStep, SecondStep };
+                Test->TestFalse(TEXT("Sharing an operation between steps is rejected"), Director->ValidateSteps(ConfigurationError));
+                LateItem->Destroy();
+                Director->Destroy();
+                Phase = EItemInteractionPhase::VerifyPlacement;
+                break;
+            }
+            case EItemInteractionPhase::VerifyPlacement:
+            {
+                APlacementStation* FarStation = World->SpawnActor<APlacementStation>(FVector(2000, 0, 200), FRotator::ZeroRotator);
+                APlacementStation* NearStation = World->SpawnActor<APlacementStation>(FVector(2015, 0, 200), FRotator::ZeroRotator);
+                const FTransform PreviousHandTransform = PlayerPawn->RightHand->GetComponentTransform();
+                PlayerPawn->RightHand->SetWorldLocation(NearStation->AcceptanceZone->GetComponentLocation());
+                PrimaryItem->TryGrab(PlayerPawn->RightHand);
+                PrimaryItem->Body->UpdateOverlaps();
+                PrimaryItem->Release(FVector::ZeroVector, FVector::ZeroVector);
+                Test->TestTrue(TEXT("Placement selects the closest valid zone rather than the first overlap"), PrimaryItem->GetAttachParentActor() == NearStation);
+                PlayerPawn->RightHand->SetWorldTransform(PreviousHandTransform);
+                PrimaryItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+                FarStation->Destroy();
+                NearStation->Destroy();
+                Phase = EItemInteractionPhase::Complete;
+                break;
+            }
+            case EItemInteractionPhase::Complete:
+            {
                 PlayerPawn->ReleaseAllItems();
                 PrimaryItem->Destroy();
                 SecondaryItem->Destroy();
@@ -179,12 +305,12 @@ public:
                 Test->AddInfo(TEXT("Input Actions, two-hand pickup, use lifecycle, menu isolation, release, throw and operation lifecycle were exercised in PIE"));
                 return true;
             }
-            default:
+            case EItemInteractionPhase::ReleaseTrigger:
             {
+                Phase = EItemInteractionPhase::GrabRight;
                 break;
             }
         }
-        ++Phase;
         PhaseStarted = FPlatformTime::Seconds();
         return false;
     }
@@ -198,13 +324,12 @@ private:
     AWorkItem* PrimaryItem = nullptr;
     AWorkItem* SecondaryItem = nullptr;
     FVector InitialLocation;
-    int32 Phase = 0;
+    EItemInteractionPhase Phase = EItemInteractionPhase::UseWithoutGrab;
     double PhaseStarted = 0;
     double InitializationStarted = 0;
 
-    void Inject(const FString& Name, FInputActionValue Value)
+    void Inject(UInputAction* Action, FInputActionValue Value)
     {
-        UInputAction* Action = LoadObject<UInputAction>(nullptr, *FString::Format(TEXT("/Game/Prototype/Input/{0}.{0}"), { Name }));
         Inputs->InjectInputForAction(Action, Value, {}, {});
     }
 
@@ -229,10 +354,13 @@ IMPLEMENT_COMPLEX_AUTOMATION_TEST(FItemInteractionTest, "YakutSimulator.Runtime.
 
 void FItemInteractionTest::GetTests(TArray<FString>& BeautifiedNames, TArray<FString>& TestCommands) const
 {
-    BeautifiedNames.Add(TEXT("Fishing"));
-    TestCommands.Add(TEXT("/Game/Prototype/Maps/L_Fishing"));
-    BeautifiedNames.Add(TEXT("Clinic"));
-    TestCommands.Add(TEXT("/Game/Prototype/Maps/L_Clinic"));
+    for (const FScenarioMapEntry& Entry : GetDefault<APrototypeGameMode>()->ScenarioMaps)
+    {
+        FString MapTestName = Entry.Map.ToSoftObjectPath().GetAssetName();
+        MapTestName.RemoveFromStart(TEXT("L_"));
+        BeautifiedNames.Add(MapTestName);
+        TestCommands.Add(Entry.Map.ToSoftObjectPath().GetLongPackageName());
+    }
 }
 
 bool FItemInteractionTest::RunTest(const FString& Parameters)
@@ -241,7 +369,7 @@ bool FItemInteractionTest::RunTest(const FString& Parameters)
     ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
     ADD_LATENT_AUTOMATION_COMMAND(FItemInteractionCommand(this));
     ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-    ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(TEXT("/Game/Prototype/Maps/L_MainMenu")));
+    ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(GetDefault<APrototypeGameMode>()->MainMenuMap.ToSoftObjectPath().GetLongPackageName()));
     return true;
 }
 

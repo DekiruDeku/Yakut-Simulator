@@ -5,6 +5,8 @@
 #include "WorkTypes.h"
 #include "PrototypeGameMode.generated.h"
 
+class AScenarioDirector;
+
 UCLASS()
 class YAKUTSIMULATOR_API APrototypeGameMode : public AGameModeBase
 {
@@ -12,6 +14,12 @@ class YAKUTSIMULATOR_API APrototypeGameMode : public AGameModeBase
 
 public:
     APrototypeGameMode();
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Maps")
+    TSoftObjectPtr<UWorld> MainMenuMap;
+
+    UFUNCTION(BlueprintPure, Category="Scenario")
+    AScenarioDirector* FindScenarioDirector() const;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Maps")
     TArray<FScenarioMapEntry> ScenarioMaps;

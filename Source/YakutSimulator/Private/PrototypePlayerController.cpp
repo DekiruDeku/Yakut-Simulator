@@ -1,20 +1,39 @@
 #include "PrototypePlayerController.h"
 
 #include "Components/WidgetComponent.h"
-#include "EngineUtils.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "PrototypeGameMode.h"
-#include "PrototypeWidgets.h"
+#include "Blueprint/UserWidget.h"
 #include "ScenarioDirector.h"
-#include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 #include "VirtualRealityPawn.h"
+
+APrototypePlayerController::APrototypePlayerController()
+{
+    static ConstructorHelpers::FClassFinder<UUserWidget> DefaultMainMenuClass(TEXT("/Game/Prototype/UI/WBP_MainMenu"));
+    MainMenuClass = DefaultMainMenuClass.Class;
+    static ConstructorHelpers::FClassFinder<UUserWidget> DefaultScenarioPanelClass(TEXT("/Game/Prototype/UI/WBP_ScenarioPanel"));
+    ScenarioPanelClass = DefaultScenarioPanelClass.Class;
+}
 
 void APrototypePlayerController::BeginPlay()
 {
     Super::BeginPlay();
-    GetWorldTimerManager().SetTimerForNextTick(this, &APrototypePlayerController::InitializeInterface);
+    if (GetPawn())
+    {
+        InitializeInterface();
+    }
+}
+
+void APrototypePlayerController::OnPossess(APawn* InPawn)
+{
+    Super::OnPossess(InPawn);
+    if (HasActorBegunPlay())
+    {
+        InitializeInterface();
+    }
 }
 
 void APrototypePlayerController::InitializeInterface()
@@ -23,37 +42,50 @@ void APrototypePlayerController::InitializeInterface()
     {
         SetMenuOpen(true);
     }
-    else if (!UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled())
+    else
     {
-        bool bHasScenario = false;
-        for (TActorIterator<AScenarioDirector> DirectorIterator(GetWorld()); DirectorIterator; ++DirectorIterator)
-        {
-            bHasScenario = !DirectorIterator->Steps.IsEmpty();
-            if (bHasScenario)
-            {
-                break;
-            }
-        }
-        if (!bHasScenario)
-        {
-            return;
-        }
-        TSubclassOf<UScenarioPanelWidget> PanelClass = LoadClass<UScenarioPanelWidget>(nullptr, TEXT("/Game/Prototype/UI/WBP_ScenarioPanel.WBP_ScenarioPanel_C"));
-        if (!PanelClass)
-        {
-            PanelClass = UScenarioPanelWidget::StaticClass();
-        }
-        ScenarioPanel = CreateWidget<UScenarioPanelWidget>(this, PanelClass);
+        InitializeScenarioPanel();
+    }
+}
+
+void APrototypePlayerController::InitializeScenarioPanel()
+{
+    const APrototypeGameMode* GameMode = GetWorld()->GetAuthGameMode<APrototypeGameMode>();
+    AVirtualRealityPawn* PlayerPawn = Cast<AVirtualRealityPawn>(GetPawn());
+    if (!GameMode || !PlayerPawn || !ScenarioPanelClass)
+    {
+        return;
+    }
+    ScenarioDirector = GameMode->FindScenarioDirector();
+    if (!ScenarioDirector)
+    {
+        return;
+    }
+    if (!ScenarioPanel)
+    {
+        ScenarioPanel = CreateWidget<UUserWidget>(this, ScenarioPanelClass);
+    }
+    if (UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled())
+    {
+        PlayerPawn->ScenarioDisplay->SetOwnerPlayer(GetLocalPlayer());
+        PlayerPawn->ScenarioDisplay->SetWidget(ScenarioPanel);
+        PlayerPawn->ScenarioDisplay->SetVisibility(true);
+    }
+    else if (!ScenarioPanel->IsInViewport())
+    {
         ScenarioPanel->AddToViewport();
-        ScenarioPanel->SetPositionInViewport(FVector2D(24, 24));
-        ScenarioPanel->SetDesiredSizeInViewport(FVector2D(480, 310));
         ScenarioPanel->SetVisibility(ESlateVisibility::HitTestInvisible);
     }
 }
 
 bool APrototypePlayerController::IsMainMenuMap() const
 {
-    return UGameplayStatics::GetCurrentLevelName(this, true) == TEXT("L_MainMenu");
+    const APrototypeGameMode* GameMode = GetWorld()->GetAuthGameMode<APrototypeGameMode>();
+    if (!GameMode || GameMode->MainMenuMap.IsNull())
+    {
+        return false;
+    }
+    return UWorld::RemovePIEPrefix(GetWorld()->GetPackage()->GetName()) == GameMode->MainMenuMap.ToSoftObjectPath().GetLongPackageName();
 }
 
 void APrototypePlayerController::ToggleMenu()
@@ -76,13 +108,15 @@ void APrototypePlayerController::SetMenuOpen(bool bOpen)
     PlayerPawn->CancelTeleport();
     if (bOpen && !Menu)
     {
-        TSubclassOf<UMainMenuWidget> MenuClass = LoadClass<UMainMenuWidget>(nullptr, TEXT("/Game/Prototype/UI/WBP_MainMenu.WBP_MainMenu_C"));
-        if (!MenuClass)
+        if (!MainMenuClass)
         {
-            MenuClass = UMainMenuWidget::StaticClass();
+            bMenuOpen = false;
+            return;
         }
-        Menu = CreateWidget<UMainMenuWidget>(this, MenuClass);
+        Menu = CreateWidget<UUserWidget>(this, MainMenuClass);
     }
+    PlayerPawn->SetItemUse(true, false);
+    PlayerPawn->SetItemUse(false, false);
     if (UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled())
     {
         PlayerPawn->ShowMenu(Menu, bOpen);
@@ -131,10 +165,7 @@ bool APrototypePlayerController::OpenScenarioMap(TSoftObjectPtr<UWorld> Map)
     if (!bListed || !FPackageName::DoesPackageExist(Map.ToSoftObjectPath().GetLongPackageName()))
     {
         MenuError = FText::FromString(TEXT("Карта недоступна. Проверьте настройки списка карт."));
-        if (Menu)
-        {
-            Menu->RefreshMenu();
-        }
+        OnMenuErrorChanged.Broadcast();
         return false;
     }
     if (AVirtualRealityPawn* PlayerPawn = Cast<AVirtualRealityPawn>(GetPawn()))
@@ -147,9 +178,16 @@ bool APrototypePlayerController::OpenScenarioMap(TSoftObjectPtr<UWorld> Map)
 
 void APrototypePlayerController::ReturnToMainMenu()
 {
+    const APrototypeGameMode* GameMode = GetWorld()->GetAuthGameMode<APrototypeGameMode>();
+    if (!GameMode || !FPackageName::DoesPackageExist(GameMode->MainMenuMap.ToSoftObjectPath().GetLongPackageName()))
+    {
+        MenuError = FText::FromString(TEXT("Главная карта недоступна. Проверьте настройки игрового режима."));
+        OnMenuErrorChanged.Broadcast();
+        return;
+    }
     if (AVirtualRealityPawn* PlayerPawn = Cast<AVirtualRealityPawn>(GetPawn()))
     {
         PlayerPawn->ReleaseAllItems();
     }
-    UGameplayStatics::OpenLevel(this, TEXT("/Game/Prototype/Maps/L_MainMenu"));
+    UGameplayStatics::OpenLevel(this, FName(GameMode->MainMenuMap.ToSoftObjectPath().GetLongPackageName()));
 }

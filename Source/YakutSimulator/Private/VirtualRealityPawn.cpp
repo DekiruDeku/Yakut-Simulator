@@ -8,21 +8,44 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
-#include "EngineUtils.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "MotionControllerComponent.h"
 #include "PrototypePlayerController.h"
-#include "PrototypeWidgets.h"
-#include "ScenarioDirector.h"
+#include "Blueprint/UserWidget.h"
 #include "UObject/ConstructorHelpers.h"
 #include "WorkItem.h"
 
 AVirtualRealityPawn::AVirtualRealityPawn()
 {
     PrimaryActorTick.bCanEverTick = true;
+    static ConstructorHelpers::FObjectFinder<UInputMappingContext> DefaultInteractionMapping(TEXT("/Game/Prototype/Input/IMC_Interaction.IMC_Interaction"));
+    InteractionMapping = DefaultInteractionMapping.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultGrabLeftAction(TEXT("/Game/Prototype/Input/IA_GrabLeft.IA_GrabLeft"));
+    GrabLeftAction = DefaultGrabLeftAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultGrabRightAction(TEXT("/Game/Prototype/Input/IA_GrabRight.IA_GrabRight"));
+    GrabRightAction = DefaultGrabRightAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultUseLeftAction(TEXT("/Game/Prototype/Input/IA_UseLeft.IA_UseLeft"));
+    UseLeftAction = DefaultUseLeftAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultUseRightAction(TEXT("/Game/Prototype/Input/IA_UseRight.IA_UseRight"));
+    UseRightAction = DefaultUseRightAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultTeleportAction(TEXT("/Game/Prototype/Input/IA_Teleport.IA_Teleport"));
+    TeleportAction = DefaultTeleportAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultSnapTurnAction(TEXT("/Game/Prototype/Input/IA_SnapTurn.IA_SnapTurn"));
+    SnapTurnAction = DefaultSnapTurnAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultToggleMenuAction(TEXT("/Game/Prototype/Input/IA_ToggleMenu.IA_ToggleMenu"));
+    ToggleMenuAction = DefaultToggleMenuAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultCancelAction(TEXT("/Game/Prototype/Input/IA_Cancel.IA_Cancel"));
+    CancelAction = DefaultCancelAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultDesktopMoveAction(TEXT("/Game/Prototype/Input/IA_DesktopMove.IA_DesktopMove"));
+    DesktopMoveAction = DefaultDesktopMoveAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultDesktopLookAction(TEXT("/Game/Prototype/Input/IA_DesktopLook.IA_DesktopLook"));
+    DesktopLookAction = DefaultDesktopLookAction.Object;
+    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultTeleportHoldAction(TEXT("/Game/Prototype/Input/IA_TeleportHold.IA_TeleportHold"));
+    TeleportHoldAction = DefaultTeleportHoldAction.Object;
     TrackingOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("TrackingOrigin"));
     SetRootComponent(TrackingOrigin);
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
@@ -90,6 +113,7 @@ AVirtualRealityPawn::AVirtualRealityPawn()
     ScenarioDisplay->SetRelativeRotation(FRotator(0, 145, 0));
     ScenarioDisplay->SetRelativeScale3D(FVector(0.09));
     ScenarioDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    ScenarioDisplay->SetVisibility(false);
 }
 
 bool AVirtualRealityPawn::IsVirtualRealityActive() const
@@ -111,19 +135,6 @@ void AVirtualRealityPawn::BeginPlay()
     if (IsVirtualRealityActive())
     {
         UHeadMountedDisplayFunctionLibrary::SetTrackingOrigin(EHMDTrackingOrigin::LocalFloor);
-        TSubclassOf<UScenarioPanelWidget> PanelClass = LoadClass<UScenarioPanelWidget>(nullptr, TEXT("/Game/Prototype/UI/WBP_ScenarioPanel.WBP_ScenarioPanel_C"));
-        ScenarioDisplay->SetWidgetClass(PanelClass);
-        ScenarioDisplay->SetOwnerPlayer(GetWorld()->GetFirstLocalPlayerFromController());
-        bool bHasScenario = false;
-        for (TActorIterator<AScenarioDirector> DirectorIterator(GetWorld()); DirectorIterator; ++DirectorIterator)
-        {
-            bHasScenario = !DirectorIterator->Steps.IsEmpty();
-            if (bHasScenario)
-            {
-                break;
-            }
-        }
-        ScenarioDisplay->SetVisibility(bHasScenario);
     }
     else
     {
@@ -316,10 +327,8 @@ void AVirtualRealityPawn::ReleaseAllItems()
     ReleaseItem(false);
 }
 
-void AVirtualRealityPawn::ShowMenu(UMainMenuWidget* Menu, bool bShow)
+void AVirtualRealityPawn::ShowMenu(UUserWidget* Menu, bool bShow)
 {
-    SetItemUse(true, false);
-    SetItemUse(false, false);
     MenuDisplay->SetWidget(Menu);
     MenuDisplay->SetVisibility(bShow);
     MenuDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -464,10 +473,8 @@ void AVirtualRealityPawn::CommitTeleport()
     FVector HeadOffset = Camera->GetComponentLocation() - GetActorLocation();
     HeadOffset.Z = 0;
     SetActorLocation(TeleportDestination - HeadOffset);
-    LeftMotion.bInitialized = false;
-    RightMotion.bInitialized = false;
-    LeftMotion.LinearVelocity = FVector::ZeroVector;
-    RightMotion.LinearVelocity = FVector::ZeroVector;
+    LeftMotion = FHandMotionState();
+    RightMotion = FHandMotionState();
 }
 
 void AVirtualRealityPawn::CancelTeleport()
@@ -498,10 +505,8 @@ void AVirtualRealityPawn::Turn(const FInputActionValue& Value)
     HeadCorrection.Z = 0;
     AddActorWorldOffset(HeadCorrection);
     bTurnReady = false;
-    LeftMotion.bInitialized = false;
-    RightMotion.bInitialized = false;
-    LeftMotion.LinearVelocity = FVector::ZeroVector;
-    RightMotion.LinearVelocity = FVector::ZeroVector;
+    LeftMotion = FHandMotionState();
+    RightMotion = FHandMotionState();
 }
 
 void AVirtualRealityPawn::FinishTurn(const FInputActionValue& Value) { bTurnReady = true; }
@@ -530,8 +535,6 @@ void AVirtualRealityPawn::ToggleMenu()
 {
     if (APrototypePlayerController* Player = Cast<APrototypePlayerController>(Controller))
     {
-        SetItemUse(true, false);
-        SetItemUse(false, false);
         Player->ToggleMenu();
     }
 }
@@ -547,44 +550,52 @@ void AVirtualRealityPawn::CancelInteraction()
 void AVirtualRealityPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
+    if (!InteractionMapping
+        || !GrabLeftAction
+        || !GrabRightAction
+        || !UseLeftAction
+        || !UseRightAction
+        || !TeleportAction
+        || !SnapTurnAction
+        || !ToggleMenuAction
+        || !CancelAction
+        || !DesktopMoveAction
+        || !DesktopLookAction
+        || !TeleportHoldAction)
+    {
+        UKismetSystemLibrary::PrintString(this, TEXT("The pawn input configuration is incomplete"), true, true, FLinearColor::Red);
+        return;
+    }
     UEnhancedInputComponent* EnhancedInput = CastChecked<UEnhancedInputComponent>(PlayerInputComponent);
     APlayerController* Player = CastChecked<APlayerController>(Controller);
     UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(Player->GetLocalPlayer());
-    UInputMappingContext* Mapping = LoadObject<UInputMappingContext>(nullptr, TEXT("/Game/Prototype/Input/IMC_Interaction.IMC_Interaction"));
-    if (!Mapping)
-    {
-        return;
-    }
-    InputSubsystem->AddMappingContext(Mapping, 0);
+    InputSubsystem->AddMappingContext(InteractionMapping, 0);
 
-    const TArray<FString> ActionNames = { TEXT("IA_GrabLeft"), TEXT("IA_GrabRight"), TEXT("IA_UseLeft"), TEXT("IA_UseRight"), TEXT("IA_Teleport"), TEXT("IA_SnapTurn"), TEXT("IA_ToggleMenu"), TEXT("IA_Cancel"), TEXT("IA_DesktopMove"), TEXT("IA_DesktopLook"), TEXT("IA_TeleportHold") };
-    for (const FString& ActionName : ActionNames)
-    {
-        InputActions.Add(LoadObject<UInputAction>(nullptr, *FString::Format(TEXT("/Game/Prototype/Input/{0}.{0}"), { ActionName })));
-    }
-    EnhancedInput->BindAction(InputActions[0], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::GrabLeft);
-    EnhancedInput->BindAction(InputActions[0], ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopGrabLeft);
-    EnhancedInput->BindAction(InputActions[0], ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopGrabLeft);
-    EnhancedInput->BindAction(InputActions[1], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::GrabRight);
-    EnhancedInput->BindAction(InputActions[1], ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopGrabRight);
-    EnhancedInput->BindAction(InputActions[1], ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopGrabRight);
-    EnhancedInput->BindAction(InputActions[2], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::UseLeft);
-    EnhancedInput->BindAction(InputActions[2], ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopUseLeft);
-    EnhancedInput->BindAction(InputActions[2], ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopUseLeft);
-    EnhancedInput->BindAction(InputActions[3], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::UseRight);
-    EnhancedInput->BindAction(InputActions[3], ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopUseRight);
-    EnhancedInput->BindAction(InputActions[3], ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopUseRight);
-    EnhancedInput->BindAction(InputActions[4], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::AimTeleport);
-    EnhancedInput->BindAction(InputActions[4], ETriggerEvent::Completed, this, &AVirtualRealityPawn::FinishTeleport);
-    EnhancedInput->BindAction(InputActions[5], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::Turn);
-    EnhancedInput->BindAction(InputActions[5], ETriggerEvent::Completed, this, &AVirtualRealityPawn::FinishTurn);
-    EnhancedInput->BindAction(InputActions[6], ETriggerEvent::Started, this, &AVirtualRealityPawn::ToggleMenu);
-    EnhancedInput->BindAction(InputActions[7], ETriggerEvent::Started, this, &AVirtualRealityPawn::CancelInteraction);
-    EnhancedInput->BindAction(InputActions[8], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::MoveDesktop);
-    EnhancedInput->BindAction(InputActions[8], ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopMoveDesktop);
-    EnhancedInput->BindAction(InputActions[9], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::LookDesktop);
-    EnhancedInput->BindAction(InputActions[10], ETriggerEvent::Triggered, this, &AVirtualRealityPawn::HoldTeleport);
-    EnhancedInput->BindAction(InputActions[10], ETriggerEvent::Completed, this, &AVirtualRealityPawn::FinishTeleport);
+    EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::GrabLeft);
+    EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopGrabLeft);
+    EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopGrabLeft);
+    EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::GrabRight);
+    EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopGrabRight);
+    EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopGrabRight);
+    EnhancedInput->BindAction(UseLeftAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::UseLeft);
+    EnhancedInput->BindAction(UseLeftAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopUseLeft);
+    EnhancedInput->BindAction(UseLeftAction, ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopUseLeft);
+    EnhancedInput->BindAction(UseRightAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::UseRight);
+    EnhancedInput->BindAction(UseRightAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopUseRight);
+    EnhancedInput->BindAction(UseRightAction, ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopUseRight);
+    EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::AimTeleport);
+    EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::FinishTeleport);
+    EnhancedInput->BindAction(SnapTurnAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::Turn);
+    EnhancedInput->BindAction(SnapTurnAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::FinishTurn);
+    EnhancedInput->BindAction(SnapTurnAction, ETriggerEvent::Canceled, this, &AVirtualRealityPawn::FinishTurn);
+    EnhancedInput->BindAction(ToggleMenuAction, ETriggerEvent::Started, this, &AVirtualRealityPawn::ToggleMenu);
+    EnhancedInput->BindAction(CancelAction, ETriggerEvent::Started, this, &AVirtualRealityPawn::CancelInteraction);
+    EnhancedInput->BindAction(DesktopMoveAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::MoveDesktop);
+    EnhancedInput->BindAction(DesktopMoveAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::StopMoveDesktop);
+    EnhancedInput->BindAction(DesktopMoveAction, ETriggerEvent::Canceled, this, &AVirtualRealityPawn::StopMoveDesktop);
+    EnhancedInput->BindAction(DesktopLookAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::LookDesktop);
+    EnhancedInput->BindAction(TeleportHoldAction, ETriggerEvent::Triggered, this, &AVirtualRealityPawn::HoldTeleport);
+    EnhancedInput->BindAction(TeleportHoldAction, ETriggerEvent::Completed, this, &AVirtualRealityPawn::FinishTeleport);
 }
 
 void AVirtualRealityPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)

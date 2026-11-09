@@ -32,6 +32,9 @@ public:
     void RegisterItem(AWorkItem* Item);
 
     UFUNCTION(BlueprintPure, Category="Scenario")
+    bool ValidateSteps(FText& Error) const;
+
+    UFUNCTION(BlueprintPure, Category="Scenario")
     int32 GetCompletedStepCount() const;
 
     UFUNCTION(BlueprintPure, Category="Scenario")
@@ -39,6 +42,7 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
     UFUNCTION()
@@ -48,6 +52,8 @@ private:
     void ProcessOperationChanged(UWorkOperationComponent* Operation);
 
     void RefreshAvailability();
+    void RegisterSpawnedActor(AActor* Actor);
 
     bool bRefreshing = false;
+    FDelegateHandle ActorSpawnSubscription;
 };

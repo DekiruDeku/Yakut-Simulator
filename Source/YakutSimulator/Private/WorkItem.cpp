@@ -67,15 +67,26 @@ void AWorkItem::Release(const FVector& LinearVelocity, const FVector& AngularVel
 
     TArray<UPrimitiveComponent*> OverlappingComponents;
     Body->GetOverlappingComponents(OverlappingComponents);
+    UInteractionZoneComponent* ClosestZone = nullptr;
+    float ClosestDistance = MAX_flt;
     for (UPrimitiveComponent* OverlappingComponent : OverlappingComponents)
     {
         if (UInteractionZoneComponent* Zone = Cast<UInteractionZoneComponent>(OverlappingComponent))
         {
-            if (Zone->TryAcceptItem(this))
+            if (Zone->CanAcceptItem(this))
             {
-                break;
+                const float Distance = FVector::DistSquared(GetActorLocation(), Zone->GetComponentLocation());
+                if (Distance < ClosestDistance)
+                {
+                    ClosestZone = Zone;
+                    ClosestDistance = Distance;
+                }
             }
         }
+    }
+    if (ClosestZone)
+    {
+        ClosestZone->TryAcceptItem(this);
     }
 }
 
