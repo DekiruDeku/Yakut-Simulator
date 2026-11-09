@@ -60,7 +60,7 @@ void UMainMenuWidget::NativeOnInitialized()
     Content->AddChildToVerticalBox(Title)->SetPadding(FMargin(0, 0, 0, 12));
 
     UTextBlock* Description = WidgetTree->ConstructWidget<UTextBlock>();
-    Description->SetText(FText::FromString(TEXT("Откройте сцену для проверки взаимодействия с предметами.")));
+    Description->SetText(FText::FromString(TEXT("Выберите карту.")));
     Description->SetAutoWrapText(true);
     Content->AddChildToVerticalBox(Description)->SetPadding(FMargin(0, 0, 0, 24));
 
@@ -158,13 +158,6 @@ void UScenarioPanelWidget::NativeOnInitialized()
         Feedback = WidgetTree->ConstructWidget<UTextBlock>();
         Feedback->SetAutoWrapText(true);
         Content->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0, 0, 0, 18));
-        UTextBlock* Controls = WidgetTree->ConstructWidget<UTextBlock>();
-        Controls->SetAutoWrapText(true);
-        Controls->SetText(FText::FromString(TEXT("VR: Grip — взять, Trigger — использовать, Y — меню.\nПК: E / Q — правая / левая рука, ЛКМ / F — использовать.\nWASD — движение, ПКМ + мышь — обзор, Esc — меню.")));
-        FSlateFontInfo ControlsFont = Controls->GetFont();
-        ControlsFont.Size = 15;
-        Controls->SetFont(ControlsFont);
-        Content->AddChildToVerticalBox(Controls);
     }
 }
 

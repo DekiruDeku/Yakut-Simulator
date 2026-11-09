@@ -14,6 +14,7 @@ AWorkItem::AWorkItem()
     Body->SetRelativeScale3D(FVector(0.12));
     Body->SetCollisionProfileName(TEXT("PhysicsActor"));
     Body->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+    Body->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
     Body->SetGenerateOverlapEvents(true);
     Body->SetSimulatePhysics(true);
     Body->SetUseCCD(true);
@@ -26,10 +27,11 @@ AWorkItem::AWorkItem()
     UseIndicator->SetupAttachment(Body);
     UseIndicator->SetRelativeLocation(FVector(0, 0, 80));
     UseIndicator->SetLightColor(FLinearColor(0.15f, 0.7f, 1.0f));
-    UseIndicator->SetIntensity(1200);
+    UseIndicator->SetIntensityUnits(ELightUnits::Lumens);
+    UseIndicator->SetIntensity(30);
     UseIndicator->SetAttenuationRadius(120);
     UseIndicator->SetVisibility(false);
-    DisplayName = FText::FromString(TEXT("Учебный предмет"));
+    DisplayName = FText::FromString(TEXT("Предмет"));
 }
 
 bool AWorkItem::TryGrab(USceneComponent* Hand)
@@ -43,7 +45,7 @@ bool AWorkItem::TryGrab(USceneComponent* Hand)
     AttachToComponent(Hand, FAttachmentTransformRules::KeepWorldTransform);
     const FTransform GripLocal = GripPoint->GetComponentTransform().GetRelativeTransform(GetActorTransform());
     SetActorRelativeRotation(GripLocal.GetRotation().Inverse());
-    SetActorRelativeLocation(-GripLocal.GetLocation());
+    SetActorRelativeLocation(-GripLocal.GetRotation().Inverse().RotateVector(GripLocal.GetLocation() * GetRootComponent()->GetRelativeScale3D()));
     bIsHeld = true;
     OnItemAction.Broadcast(this, EWorkAction::Grabbed);
     return true;

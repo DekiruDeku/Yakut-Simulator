@@ -1,11 +1,13 @@
 #include "PrototypePlayerController.h"
 
 #include "Components/WidgetComponent.h"
+#include "EngineUtils.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "PrototypeGameMode.h"
 #include "PrototypeWidgets.h"
+#include "ScenarioDirector.h"
 #include "TimerManager.h"
 #include "VirtualRealityPawn.h"
 
@@ -23,6 +25,19 @@ void APrototypePlayerController::InitializeInterface()
     }
     else if (!UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled())
     {
+        bool bHasScenario = false;
+        for (TActorIterator<AScenarioDirector> DirectorIterator(GetWorld()); DirectorIterator; ++DirectorIterator)
+        {
+            bHasScenario = !DirectorIterator->Steps.IsEmpty();
+            if (bHasScenario)
+            {
+                break;
+            }
+        }
+        if (!bHasScenario)
+        {
+            return;
+        }
         TSubclassOf<UScenarioPanelWidget> PanelClass = LoadClass<UScenarioPanelWidget>(nullptr, TEXT("/Game/Prototype/UI/WBP_ScenarioPanel.WBP_ScenarioPanel_C"));
         if (!PanelClass)
         {

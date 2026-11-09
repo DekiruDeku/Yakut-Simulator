@@ -4,37 +4,6 @@
 #include "WorkItem.h"
 #include "WorkOperationComponent.h"
 
-AScenarioDirector::AScenarioDirector()
-{
-    UWorkOperationComponent* GrabOperation = CreateDefaultSubobject<UWorkOperationComponent>(TEXT("GrabOperation"));
-    GrabOperation->RequiredAction = EWorkAction::Grabbed;
-    UWorkOperationComponent* UseOperation = CreateDefaultSubobject<UWorkOperationComponent>(TEXT("UseOperation"));
-    UseOperation->RequiredAction = EWorkAction::Used;
-    UWorkOperationComponent* PlaceOperation = CreateDefaultSubobject<UWorkOperationComponent>(TEXT("PlaceOperation"));
-    PlaceOperation->RequiredAction = EWorkAction::Placed;
-
-    FScenarioStepDefinition GrabStep;
-    GrabStep.StepIdentifier = "Grab";
-    GrabStep.Instruction = FText::FromString(TEXT("Возьмите учебный предмет."));
-    GrabStep.Hint = FText::FromString(TEXT("Поднесите руку и удерживайте Grip."));
-    GrabStep.Operation = GrabOperation;
-    Steps.Add(GrabStep);
-
-    FScenarioStepDefinition UseStep;
-    UseStep.StepIdentifier = "Use";
-    UseStep.Instruction = FText::FromString(TEXT("Используйте предмет: нажмите Trigger."));
-    UseStep.Operation = UseOperation;
-    UseStep.RequiredSteps.Add("Grab");
-    Steps.Add(UseStep);
-
-    FScenarioStepDefinition PlaceStep;
-    PlaceStep.StepIdentifier = "Place";
-    PlaceStep.Instruction = FText::FromString(TEXT("Положите предмет на отмеченную площадку."));
-    PlaceStep.Operation = PlaceOperation;
-    PlaceStep.RequiredSteps.Add("Use");
-    Steps.Add(PlaceStep);
-}
-
 void AScenarioDirector::BeginPlay()
 {
     Super::BeginPlay();
@@ -162,7 +131,7 @@ FText AScenarioDirector::GetCurrentInstruction() const
     }
     if (!Steps.IsEmpty() && GetCompletedStepCount() == Steps.Num())
     {
-        return FText::FromString(TEXT("Задание выполнено. Можно продолжить работу с предметами."));
+        return FText::FromString(TEXT("Завершено."));
     }
-    return FText::FromString(TEXT("Нет доступных заданий."));
+    return FText::GetEmpty();
 }

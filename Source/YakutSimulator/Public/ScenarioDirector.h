@@ -16,8 +16,6 @@ class YAKUTSIMULATOR_API AScenarioDirector : public AActor
     GENERATED_BODY()
 
 public:
-    AScenarioDirector();
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scenario")
     FText ScenarioTitle;
 

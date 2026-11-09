@@ -8,6 +8,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
+#include "EngineUtils.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
@@ -15,6 +16,7 @@
 #include "MotionControllerComponent.h"
 #include "PrototypePlayerController.h"
 #include "PrototypeWidgets.h"
+#include "ScenarioDirector.h"
 #include "UObject/ConstructorHelpers.h"
 #include "WorkItem.h"
 
@@ -112,7 +114,16 @@ void AVirtualRealityPawn::BeginPlay()
         TSubclassOf<UScenarioPanelWidget> PanelClass = LoadClass<UScenarioPanelWidget>(nullptr, TEXT("/Game/Prototype/UI/WBP_ScenarioPanel.WBP_ScenarioPanel_C"));
         ScenarioDisplay->SetWidgetClass(PanelClass);
         ScenarioDisplay->SetOwnerPlayer(GetWorld()->GetFirstLocalPlayerFromController());
-        ScenarioDisplay->SetVisibility(UGameplayStatics::GetCurrentLevelName(this, true) != TEXT("L_MainMenu"));
+        bool bHasScenario = false;
+        for (TActorIterator<AScenarioDirector> DirectorIterator(GetWorld()); DirectorIterator; ++DirectorIterator)
+        {
+            bHasScenario = !DirectorIterator->Steps.IsEmpty();
+            if (bHasScenario)
+            {
+                break;
+            }
+        }
+        ScenarioDisplay->SetVisibility(bHasScenario);
     }
     else
     {
