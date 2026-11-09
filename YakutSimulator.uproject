@@ -5,6 +5,10 @@
   "Description": "",
   "Plugins": [
     {
+      "Name": "Niagara",
+      "Enabled": true
+    },
+    {
       "Name": "Water",
       "Enabled": true
     },

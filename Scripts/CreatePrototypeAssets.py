@@ -119,7 +119,7 @@ AddMapping(Context, Actions["IA_DesktopMove"], "A", [Negate()])
 AddMapping(Context, Actions["IA_DesktopLook"], "Mouse2D")
 unreal.EditorAssetLibrary.save_loaded_asset(Context)
 
-UIAssetNames = ["WBP_MainMenu", "WBP_ScenarioPanel", "WBP_MapEntry"]
+UIAssetNames = ["WBP_MainMenu", "WBP_MapEntry"]
 if not all(unreal.EditorAssetLibrary.does_asset_exist(Root + "/UI/" + Name) for Name in UIAssetNames):
     UIScriptPath = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir() + "Scripts/CreatePrototypeUI.py")
     with open(UIScriptPath, encoding="utf-8-sig") as UIScriptFile:

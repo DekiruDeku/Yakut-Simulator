@@ -66,3 +66,7 @@ newmtl Stone
 Kd 0.12 0.14 0.13
 Ks 0.3 0.3 0.3
 Ns 64
+newmtl WheelhouseGlass
+Kd 0.68 0.86 0.92
+Ks 0.3 0.3 0.3
+Ns 64

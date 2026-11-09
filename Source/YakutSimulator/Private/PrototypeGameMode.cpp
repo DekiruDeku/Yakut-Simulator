@@ -21,7 +21,7 @@ AScenarioDirector* APrototypeGameMode::FindScenarioDirector() const
         }
         if (SelectedDirector)
         {
-            UKismetSystemLibrary::PrintString(this, TEXT("Multiple configured scenario directors found; scenario UI requires a unique director"), true, true, FLinearColor::Red);
+            UKismetSystemLibrary::PrintString(this, TEXT("Multiple configured scenario directors found; a unique director is required"), true, true, FLinearColor::Red);
             return nullptr;
         }
         SelectedDirector = *DirectorIterator;

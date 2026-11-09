@@ -3,6 +3,7 @@ import pathlib
 import shutil
 import unreal
 from editor_toolset.toolsets.actor import ActorTools
+from editor_toolset.toolsets.blueprint import BlueprintTools
 
 ProjectDirectory=pathlib.Path(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir())).resolve()
 BackupDirectory=ProjectDirectory/'Saved/Backups/BlueprintConfiguration'
@@ -17,7 +18,7 @@ LeverConfigurations={
     'SonarScanLever':('NetGreen','Сканирование'),
     'ConveyorPowerLever':('CrateBlue','Конвейеры')
 }
-FishingVariants=list(LeverConfigurations)+['FishSchool_Cod','FishSchool_Haddock','FishSortingConveyor_Cod','FishSortingConveyor_Haddock']
+FishingVariants=list(LeverConfigurations)+['FishSchool_Cod','FishSchool_Haddock','FishSortingConveyor_Cod','FishSortingConveyor_Haddock','CoastalZone']
 ActorBlueprintRoles={'ThrottleLever':'VesselThrottleLever','SteeringLever':'VesselSteeringLever','TrawlControlLever':'TrawlControlLever','CatchReleaseLever':'CatchReleaseLever','SonarScanLever':'SonarScanLever','ConveyorPowerLever':'ConveyorPowerLever','FishSchool_Cod':'FishSchool_Cod','FishSchool_Haddock':'FishSchool_Haddock','Sorting_Cod':'FishSortingConveyor_Cod','Sorting_Haddock':'FishSortingConveyor_Haddock'}
 
 
@@ -107,6 +108,29 @@ def AddVisual(Blueprint,Name,MeshName,Position,Collision):
     unreal.EditorAssetLibrary.save_loaded_asset(Blueprint,False)
 
 
+def ConfigureCoastalZoneBlueprint():
+    Path='/Game/Fishing/Blueprints/BP_CoastalZone'
+    if unreal.EditorAssetLibrary.does_asset_exist(Path):
+        return unreal.load_asset(Path)
+    Factory=unreal.BlueprintFactory()
+    Factory.set_editor_property('parent_class',unreal.Actor)
+    Blueprint=unreal.AssetToolsHelpers.get_asset_tools().create_asset('BP_CoastalZone','/Game/Fishing/Blueprints',unreal.Blueprint,Factory)
+    unreal.BlueprintEditorLibrary.compile_blueprint(Blueprint)
+    Defaults=unreal.get_default_object(Blueprint.generated_class())
+    Defaults.set_editor_property('Tags',[unreal.Name('Shore')])
+    Spline=ActorTools.add_component(Blueprint,unreal.SplineComponent.static_class(),'BoundarySpline')
+    Spline.set_spline_points([unreal.Vector(-500,-500,0),unreal.Vector(500,-500,0),unreal.Vector(500,500,0),unreal.Vector(-500,500,0)],unreal.SplineCoordinateSpace.LOCAL,False)
+    for PointIndex in range(Spline.get_number_of_spline_points()):
+        Spline.set_spline_point_type(PointIndex,unreal.SplinePointType.LINEAR,False)
+    Spline.set_closed_loop(True,True)
+    Graph=BlueprintTools.get_graph(Blueprint,'EventGraph')
+    for Node in list(BlueprintTools.find_nodes(Graph)):
+        BlueprintTools.delete_node(Node)
+    unreal.BlueprintEditorLibrary.compile_blueprint(Blueprint)
+    unreal.EditorAssetLibrary.save_loaded_asset(Blueprint,False)
+    return Blueprint
+
+
 def ConfigureProjectBlueprints():
     AssetTools=unreal.AssetToolsHelpers.get_asset_tools()
     Blueprints={}
@@ -141,7 +165,6 @@ def ConfigureProjectBlueprints():
             Pawn.set_editor_property(Property,unreal.load_asset('/Game/Prototype/Input/'+Asset))
     if 'PrototypePlayerController' in Created:
         Defaults['PrototypePlayerController'].set_editor_property('main_menu_class',unreal.load_asset('/Game/Prototype/UI/WBP_MainMenu').generated_class())
-        Defaults['PrototypePlayerController'].set_editor_property('scenario_panel_class',unreal.load_asset('/Game/Prototype/UI/WBP_ScenarioPanel').generated_class())
     if 'PrototypeGameMode' in Created:
         GameMode=Defaults['PrototypeGameMode']
         GameMode.set_editor_property('default_pawn_class',Blueprints['VirtualRealityPawn'].generated_class())
@@ -228,12 +251,14 @@ def ConfigureProjectBlueprints():
     for Name,MeshName,Position,Collision in [
         ('HullVisual','SM_TrawlerHull',(0,0,0),'NoCollision'),
         ('DeckVisual','SM_TrawlerDeck',(0,0,0),'BlockAllDynamic'),
-        ('WheelhouseVisual','SM_Wheelhouse',(0,0,0),'NoCollision'),
+        ('WheelhouseVisual','SM_Wheelhouse',(0,0,0),'BlockAllDynamic'),
+        ('WheelhouseGlassVisual','SM_WheelhouseGlass',(0,0,0),'BlockAllDynamic'),
         ('SternFrameVisual','SM_SternFrame',(0,0,0),'NoCollision'),
         ('ControlConsoleVisual','SM_ControlConsole',(-285,-160,95),'BlockAllDynamic')
     ]:
         AddVisual(Blueprints['TrawlerVessel'],Name,MeshName,Position,Collision)
     AddVisual(Blueprints['FishingScenario'],'DisplayHousing','SM_SonarDisplay',(0,0,0),'BlockAllDynamic')
+    ConfigureCoastalZoneBlueprint()
     VerificationDirectory.mkdir(parents=True,exist_ok=True)
     (VerificationDirectory/'Blueprints.json').write_text(json.dumps({Name:Blueprint.get_path_name() for Name,Blueprint in Blueprints.items()},indent=2),encoding='utf-8')
     print('Project Blueprint classes configured:',len(Blueprints))

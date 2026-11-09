@@ -106,23 +106,10 @@ def BuildDesigners():
     for Name in ['ResumeButton', 'MainMenuButton']:
         BindButton(Menu, Name)
 
-    Panel = GetBlueprint('WBP_ScenarioPanel')
-    Canvas = AddWidget(Panel, 'PanelCanvas', unreal.CanvasPanel)
-    Card = AddWidget(Panel, 'PanelCard', unreal.SizeBox, Canvas)
-    Card.set_width_override(480)
-    Card.slot.set_position(unreal.Vector2D(24, 24))
-    Card.slot.set_auto_size(True)
-    Surface = AddWidget(Panel, 'Surface', unreal.Border, Card)
-    Surface.set_brush_color(unreal.LinearColor(0.025, 0.04, 0.065, 0.94))
-    Surface.set_padding(unreal.Margin(22))
-    Content = AddWidget(Panel, 'PanelContent', unreal.VerticalBox, Surface)
-    for Name, Size in [('Heading', 24), ('Instruction', 20), ('Progress', 20), ('Feedback', 20)]:
-        Text = AddText(Panel, Name, Content, Size=Size)
-        Text.slot.set_padding(unreal.Margin(0, 0, 0, 12))
-    for Blueprint in [Entry, Menu, Panel]:
+    for Blueprint in [Entry, Menu]:
         BlueprintTools.compile_blueprint(Blueprint)
         unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
-    return Entry, Menu, Panel
+    return Entry, Menu
 
 
 
@@ -225,46 +212,11 @@ def BuildMenuGraph(Blueprint):
     BlueprintTools.compile_blueprint(Blueprint)
 
 
-def BuildPanelGraph(Blueprint):
-    if 'Director' not in BlueprintTools.list_variables(Blueprint):
-        BlueprintTools.add_object_variable(Blueprint, 'Director', unreal.ScenarioDirector.static_class())
-    RefreshGraph = BlueprintTools.add_function_graph(Blueprint, 'RefreshScenario')
-    DiscoverNodes(RefreshGraph, ['Variables|Default|GetDirector', 'Variables|WBP_ScenarioPanel|GetHeading', 'Variables|WBP_ScenarioPanel|GetInstruction', 'Variables|WBP_ScenarioPanel|GetFeedback', 'Variables|WBP_ScenarioPanel|GetProgress', 'Class|ScenarioDirector|GetScenarioTitle', 'Class|ScenarioDirector|GetLastAction', 'Class|ScenarioDirector|GetSteps', 'Scenario|GetCurrentInstruction', 'Scenario|GetCompletedStepCount', 'Widget|SetText(Text)', 'Utilities|Array|Length', 'Utilities|Text|ToText(String)', 'Utilities|String|Append'])
-    WriteGraph(RefreshGraph, '''
-(fn RefreshScenario ()
-    (bind Director (Variables|Default|GetDirector))
-    (Widget|SetText(Text) :self (Variables|WBP_ScenarioPanel|GetHeading) :InText (Class|ScenarioDirector|GetScenarioTitle :self Director))
-    (Widget|SetText(Text) :self (Variables|WBP_ScenarioPanel|GetInstruction) :InText (Scenario|GetCurrentInstruction :self Director))
-    (Widget|SetText(Text) :self (Variables|WBP_ScenarioPanel|GetProgress)
-        :InText (Utilities|Text|ToText(String) :InString
-            (Utilities|String|Append
-                :A (Utilities|String|Append :A "Выполнено шагов: " :B (Scenario|GetCompletedStepCount :self Director))
-                :B (Utilities|String|Append :A " из " :B (Utilities|Array|Length :TargetArray (Class|ScenarioDirector|GetSteps :self Director))))))
-    (Widget|SetText(Text) :self (Variables|WBP_ScenarioPanel|GetFeedback) :InText (Class|ScenarioDirector|GetLastAction :self Director)))
-''')
-    BlueprintTools.compile_blueprint(Blueprint)
-    Graph = BlueprintTools.get_graph(Blueprint, 'EventGraph')
-    DiscoverNodes(Graph, ['Widget|GetOwningPlayer', 'Utilities|Casting|CastToPrototypePlayerController', 'Class|PrototypePlayerController|GetScenarioDirector', 'Variables|Default|SetDirector', 'Scenario|BindEventtoOnScenarioChanged', 'CallFunction|RefreshScenario'])
-    WriteGraph(Graph, '''
-(event UserInterface|EventOnInitialized
-    (bind Controller (Utilities|Casting|CastToPrototypePlayerController :Object (Widget|GetOwningPlayer))
-        (:then
-            (bind Director (Class|PrototypePlayerController|GetScenarioDirector :self Controller))
-            (Variables|Default|SetDirector :Director Director)
-            (Scenario|BindEventtoOnScenarioChanged :self Director)
-            (CallFunction|RefreshScenario))
-        (:CastFailed)))
-''')
-    BindRefreshFunction(Graph, 'Scenario|BindEventtoOnScenarioChanged', 'RefreshScenario')
-    BlueprintTools.compile_blueprint(Blueprint)
-
-
 def BuildPrototypeInterface():
-    EntryBlueprint, MainMenuBlueprint, ScenarioPanelBlueprint = BuildDesigners()
+    EntryBlueprint, MainMenuBlueprint = BuildDesigners()
     BuildEntryGraph(EntryBlueprint)
     BuildMenuGraph(MainMenuBlueprint)
-    BuildPanelGraph(ScenarioPanelBlueprint)
-    for Blueprint in [EntryBlueprint, MainMenuBlueprint, ScenarioPanelBlueprint]:
+    for Blueprint in [EntryBlueprint, MainMenuBlueprint]:
         for Graph in BlueprintTools.list_graphs(Blueprint):
             BlueprintTools.arrange_nodes(BlueprintTools.find_nodes(Graph))
         unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)

@@ -48,9 +48,6 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Interface")
     TObjectPtr<UWidgetComponent> MenuDisplay;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Interface")
-    TObjectPtr<UWidgetComponent> ScenarioDisplay;
-
     UPROPERTY(BlueprintReadOnly, Category="Interaction")
     TObjectPtr<AWorkItem> LeftItem;
 

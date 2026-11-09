@@ -313,6 +313,7 @@ private:
             Test->AddError(TEXT("The sonar did not discover a configured school"));
             return true;
         }
+        School->bMovementEnabled = false;
         Goal = Scenario->SortOperation->RequiredCount;
         Scenario->Trawl->Capacity = Goal;
         Scenario->Winch->CableSpeed = 2000;

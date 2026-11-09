@@ -32,6 +32,15 @@ def CreatePaint(Name, Color):
     if Name == 'WindowGlass':
         Metallic = .75
         Roughness = .12
+    if Name == 'WheelhouseGlass':
+        Metallic = 0
+        Roughness = .08
+        Result.set_editor_property('blend_mode',unreal.BlendMode.BLEND_TRANSLUCENT)
+        Result.set_editor_property('two_sided',True)
+        Result.set_editor_property('translucency_lighting_mode',unreal.TranslucencyLightingMode.TLM_SURFACE_PER_PIXEL_LIGHTING)
+        Opacity = unreal.MaterialEditingLibrary.create_material_expression(Result,unreal.MaterialExpressionConstant)
+        Opacity.set_editor_property('r',.12)
+        unreal.MaterialEditingLibrary.connect_material_property(Opacity,'',unreal.MaterialProperty.MP_OPACITY)
     if Name in ['Rubber','NetGreen','Rope','Stone']:
         Metallic = 0
         Roughness = .88
@@ -46,10 +55,14 @@ def CreatePaint(Name, Color):
     return Result
 
 
-def ImportFishingAssets(Reimport=False):
-    Paints = {Name:CreatePaint(Name,Color) for Name,Color in Metadata['palette'].items()}
+def ImportFishingAssets(Reimport=False,AssetNames=None):
+    Assets = Metadata['assets']
+    if AssetNames:
+        Assets = {Name:Assets[Name] for Name in AssetNames}
+    MaterialNames = {Name for Information in Assets.values() for Name in Information['materials']}
+    Paints = {Name:CreatePaint(Name,Metadata['palette'][Name]) for Name in MaterialNames}
     Tasks=[]
-    for Name in Metadata['assets']:
+    for Name in Assets:
         if unreal.EditorAssetLibrary.does_asset_exist(RootPath+'/Meshes/'+Name) and not Reimport:
             continue
         Task=unreal.AssetImportTask()
@@ -68,14 +81,16 @@ def ImportFishingAssets(Reimport=False):
         Tasks.append(Task)
     if Tasks:
         AssetTools.import_asset_tasks(Tasks)
-    for Name,Information in Metadata['assets'].items():
+    for Name,Information in Assets.items():
         Mesh=unreal.load_asset(RootPath+'/Meshes/'+Name)
         if not Mesh:
             raise RuntimeError('Missing imported mesh: '+Name)
         for SlotIndex,Slot in enumerate(Mesh.get_editor_property('static_materials')):
             MaterialName=str(Slot.get_editor_property('material_slot_name'))
             if MaterialName not in Paints:
-                raise RuntimeError('Unmapped material slot: '+Name+'/'+MaterialName)
+                if MaterialName not in Metadata['palette']:
+                    raise RuntimeError('Unmapped material slot: '+Name+'/'+MaterialName)
+                Paints[MaterialName]=CreatePaint(MaterialName,Metadata['palette'][MaterialName])
             Mesh.set_material(SlotIndex,Paints[MaterialName])
         MeshEditor.remove_collisions(Mesh)
         Setup=Mesh.get_editor_property('body_setup')
@@ -85,12 +100,14 @@ def ImportFishingAssets(Reimport=False):
                 raise RuntimeError('Deck convex collision generation failed')
         elif Information['collision']=='convex':
             MeshEditor.add_simple_collisions(Mesh,unreal.ScriptCollisionShapeType.BOX)
-        elif Information['collision'] in ['crate','fish']:
+        elif Information['collision'] in ['crate','fish','boxes']:
             Geometry=Setup.get_editor_property('agg_geom')
             Boxes=[]
             Specifications=[((0,0,-18),(70,50,4)),((0,-23,0),(70,4,40)),((0,23,0),(70,4,40)),((-33,0,0),(4,42,40)),((33,0,0),(4,42,40))]
             if Information['collision']=='fish':
                 Specifications=[((0,0,0),(50,15,17))]
+            if Information['collision']=='boxes':
+                Specifications=[(Entry['center'],Entry['size']) for Entry in Information['boxes']]
             for Center,Size in Specifications:
                 Box=unreal.KBoxElem()
                 Box.set_editor_property('center',unreal.Vector(*Center))

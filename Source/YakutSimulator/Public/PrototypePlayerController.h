@@ -4,7 +4,6 @@
 #include "GameFramework/PlayerController.h"
 #include "PrototypePlayerController.generated.h"
 
-class AScenarioDirector;
 class UUserWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMenuErrorChanged);
@@ -19,12 +18,6 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Interface")
     TSubclassOf<UUserWidget> MainMenuClass;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Interface")
-    TSubclassOf<UUserWidget> ScenarioPanelClass;
-
-    UPROPERTY(BlueprintReadOnly, Category="Scenario")
-    TObjectPtr<AScenarioDirector> ScenarioDirector;
 
     UPROPERTY(BlueprintReadOnly, Category="Menu")
     bool bMenuOpen = false;
@@ -58,10 +51,6 @@ private:
     UPROPERTY()
     TObjectPtr<UUserWidget> Menu;
 
-    UPROPERTY()
-    TObjectPtr<UUserWidget> ScenarioPanel;
-
     void InitializeInterface();
     void SetMenuOpen(bool bOpen);
-    void InitializeScenarioPanel();
 };

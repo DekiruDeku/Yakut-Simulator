@@ -3,11 +3,15 @@ import bmesh
 import math
 import json
 import pathlib
+import sys
 from mathutils import Vector
 
 ProjectDirectory = pathlib.Path('M:/Prototypes/Yakut-Simulator')
 OutputDirectory = ProjectDirectory / 'SourceAssets/Fishing/Models'
 OutputDirectory.mkdir(parents=True, exist_ok=True)
+SelectedAssets = []
+if '--assets' in sys.argv:
+    SelectedAssets = sys.argv[sys.argv.index('--assets') + 1].split(',')
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
 Materials = {}
@@ -22,6 +26,7 @@ Palette = {
     'FishBlue': (0.22,0.36,0.42,1), 'Eye': (0.007,0.009,0.01,1),
     'Stone': (0.12,0.14,0.13,1)
 }
+Palette['WheelhouseGlass'] = (0.68,0.86,0.92,1)
 for Name, Color in Palette.items():
     Material = bpy.data.materials.new(Name)
     Material.diffuse_color = Color
@@ -50,6 +55,11 @@ def Box(Name, Center, Size, MaterialName, Bevel=0.025):
     Object = Adopt(bpy.context.object, MaterialName)
     Object.name = Name
     Object.dimensions = Size
+    if AssetMetadata[CurrentCollection.name]['collision'] == 'boxes':
+        AssetMetadata[CurrentCollection.name].setdefault('boxes', []).append({
+            'center': [Coordinate * 100 for Coordinate in Center],
+            'size': [Coordinate * 100 for Coordinate in Size]
+        })
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     if Bevel:
         Modifier = Object.modifiers.new('RoundedEdges', 'BEVEL')
@@ -168,21 +178,52 @@ for Longitudinal in [-6,-4,-2,0,2,4,6]:
     Width=min(Sections,key=lambda Entry:abs(Entry[0]-Longitudinal))[1]-.15
     Box('DeckSeam',(Longitudinal,0,.465),(.012,Width*2,.006),'DarkSteel',0)
 
-BeginAsset('SM_Wheelhouse')
-Box('Cabin',(3.6,0,1.65),(4.7,4.45,2.4),'Ivory',.20)
+BeginAsset('SM_Wheelhouse','boxes')
+for WallPosition in [1.25,5.95]:
+    if WallPosition == 5.95:
+        Box('BowLowerWall',(WallPosition,0,.955),(.12,4.45,1.01),'Ivory',.025)
+        Box('BowStripe',(6.015,0,1.05),(.025,4.38,.27),'HullBlue',.008)
+    else:
+        for Side in [-1,1]:
+            Box('SternLowerWall',(WallPosition,Side*1.4275,.955),(.12,1.595,1.01),'Ivory',.025)
+            Box('SternStripe',(1.185,Side*1.4275,1.05),(.025,1.52,.27),'HullBlue',.008)
+            Box('DoorJamb',(WallPosition,Side*.635,1.52),(.16,.07,2.14),'Ivory',.012)
+    Box('EndHeader',(WallPosition,0,2.70),(.14,4.45,.22),'Ivory',.025)
+    for Side in [-1,1]:
+        Box('CornerPost',(WallPosition,Side*2.225,1.52),(.16,.16,2.14),'Ivory',.02)
+for Side in [-1,1]:
+    Box('SideLowerWall',(3.6,Side*2.225,.955),(4.7,.12,1.01),'Ivory',.025)
+    Box('SideHeader',(3.6,Side*2.225,2.70),(4.7,.14,.22),'Ivory',.025)
+    Box('SideStripe',(3.6,Side*2.29,1.05),(4.52,.025,.27),'HullBlue',.008)
+    for Longitudinal in [2.85,4.40]:
+        Box('SideMullion',(Longitudinal,Side*2.225,2.025),(.07,.14,1.13),'Ivory',.012)
+for Lateral in [-.735,.735]:
+    Box('BowMullion',(5.95,Lateral,2.025),(.14,.07,1.13),'Ivory',.012)
 Box('CabinRoof',(3.6,0,2.94),(5.1,4.85,.23),'Ivory',.16)
 Box('RoofBand',(3.6,0,2.78),(4.85,4.6,.12),'HullBlue',.06)
-for Lateral in [-1.45,0,1.45]:
-    Frame=Box('WindowFrame',(1.225,Lateral,2.12),(.13,1.29,.96),'DarkSteel',.09)
-    Box('WindowGlass',(1.148,Lateral,2.12),(.035,1.12,.79),'WindowGlass',.07)
-    Cylinder('Wiper',(1.10,Lateral-.4,1.78),(1.10,Lateral+.30,2.37),.012,'Rubber',10)
-Box('CabinStripe',(1.20,0,1.05),(.065,4.1,.27),'HullBlue',.02)
+Windows=[]
 for Side in [-1,1]:
-    for Longitudinal in [2.3,3.75,5.1]:
-        Box('SideWindowFrame',(Longitudinal,Side*2.24,2.12),(1.06,.10,.90),'DarkSteel',.07)
-        Box('SideWindow',(Longitudinal,Side*2.30,2.12),(.91,.025,.74),'WindowGlass',.04)
-    Box('SideStripe',(3.7,Side*2.24,1.05),(4.2,.05,.27),'HullBlue',.01)
-    Tube('GrabRail',[(1.4,Side*2.37,.8),(1.4,Side*2.37,1.8)],.023,'Steel')
+    for First,Second in [(1.36,2.78),(2.92,4.33),(4.47,5.84)]:
+        Windows.append(((First+Second)/2,Side*2.225,Second-First,'Side'))
+for First,Second in [(-2.115,-.77),(-.70,.70),(.77,2.115)]:
+    Windows.append((5.95,(First+Second)/2,Second-First,'End'))
+for Side in [-1,1]:
+    Windows.append((1.25,Side*1.4075,1.415,'End'))
+for Longitudinal,Lateral,Width,Orientation in Windows:
+    if Orientation == 'Side':
+        for Height in [1.49,2.56]:
+            Box('WindowHorizontalSeal',(Longitudinal,Lateral,Height),(Width,.15,.06),'Rubber',.01)
+        for Offset in [-1,1]:
+            Box('WindowVerticalSeal',(Longitudinal+Offset*(Width/2-.03),Lateral,2.025),(.06,.15,1.13),'Rubber',.01)
+    else:
+        for Height in [1.49,2.56]:
+            Box('WindowHorizontalSeal',(Longitudinal,Lateral,Height),(.15,Width,.06),'Rubber',.01)
+        for Offset in [-1,1]:
+            Box('WindowVerticalSeal',(Longitudinal,Lateral+Offset*(Width/2-.03),2.025),(.15,.06,1.13),'Rubber',.01)
+for Side in [-1,1]:
+    Tube('DoorGrabRail',[(1.15,Side*.80,.85),(1.15,Side*.80,1.42)],.023,'Steel')
+for Lateral in [-1.43,0,1.43]:
+    Cylinder('BowWiper',(6.045,Lateral-.40,1.60),(6.045,Lateral+.30,2.30),.012,'Rubber',10)
 Cylinder('Mast',(3.9,0,3),(3.9,0,5.5),.07,'Ivory')
 Cylinder('MastArm',(3.9,-1.15,4.9),(3.9,1.15,4.9),.035,'Steel')
 Cylinder('RadarPedestal',(4.1,0,5.5),(4.1,0,5.85),.08,'DarkSteel')
@@ -192,6 +233,20 @@ for Side in [-1,1]:
     Ring('Lifebuoy',(1.10,Side*1.45,1.03),.31,'SafetyOrange',.065,'Y')
     Box('DeckLamp',(1.03,Side*2.1,2.72),(.18,.19,.23),'DarkSteel',.025)
     Box('LampGlass',(.93,Side*2.1,2.72),(.03,.14,.17),'FloatYellow',.01)
+
+BeginAsset('SM_WheelhouseGlass','boxes')
+for Longitudinal,Lateral,Width,Orientation in Windows:
+    if Orientation == 'Side':
+        Vertices=[(Longitudinal-Width/2+.03,Lateral,1.49),(Longitudinal+Width/2-.03,Lateral,1.49),(Longitudinal+Width/2-.03,Lateral,2.56),(Longitudinal-Width/2+.03,Lateral,2.56)]
+        Size=(Width-.06,.04,1.07)
+    else:
+        Vertices=[(Longitudinal,Lateral-Width/2+.03,1.49),(Longitudinal,Lateral+Width/2-.03,1.49),(Longitudinal,Lateral+Width/2-.03,2.56),(Longitudinal,Lateral-Width/2+.03,2.56)]
+        Size=(.04,Width-.06,1.07)
+    Mesh('WindowPane',Vertices,[(0,1,2,3)],'WheelhouseGlass')
+    AssetMetadata['SM_WheelhouseGlass'].setdefault('boxes',[]).append({
+        'center':[Longitudinal*100,Lateral*100,202.5],
+        'size':[Coordinate*100 for Coordinate in Size]
+    })
 
 BeginAsset('SM_SternFrame')
 for Side in [-1,1]:
@@ -322,6 +377,8 @@ for Name,Color in Palette.items():
     MaterialText.extend(['newmtl '+Name,'Kd {} {} {}'.format(*Color[:3]),'Ks 0.3 0.3 0.3','Ns 64'])
 (OutputDirectory/'FishingMaterials.mtl').write_text('\n'.join(MaterialText),encoding='utf-8')
 for AssetName in AssetMetadata:
+    if SelectedAssets and AssetName not in SelectedAssets:
+        continue
     Collection=bpy.data.collections[AssetName]
     Lines=['mtllib FishingMaterials.mtl','o '+AssetName]
     VertexOffset=0
@@ -362,6 +419,12 @@ for AssetName in AssetMetadata:
     (OutputDirectory/(AssetName+'.obj')).write_text('\n'.join(Lines),encoding='utf-8')
     AssetMetadata[AssetName]['materials']=UsedMaterials
     print('Exported',AssetName,VertexOffset)
+if SelectedAssets:
+    ExistingMetadata=json.loads((OutputDirectory/'FishingAssets.json').read_text(encoding='utf-8'))
+    ExistingMetadata['palette'].update(Palette)
+    for AssetName in SelectedAssets:
+        ExistingMetadata['assets'][AssetName]=AssetMetadata[AssetName]
+    AssetMetadata=ExistingMetadata['assets']
 (OutputDirectory/'FishingAssets.json').write_text(json.dumps({'palette':Palette,'assets':AssetMetadata},indent=2),encoding='utf-8')
 bpy.ops.wm.save_as_mainfile(filepath=str(OutputDirectory/'FishingModels.blend'))
 print('Fishing model source and meshes saved')

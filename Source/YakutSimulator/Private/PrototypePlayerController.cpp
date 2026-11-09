@@ -1,12 +1,10 @@
 #include "PrototypePlayerController.h"
 
-#include "Components/WidgetComponent.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "PrototypeGameMode.h"
 #include "Blueprint/UserWidget.h"
-#include "ScenarioDirector.h"
 #include "VirtualRealityPawn.h"
 
 APrototypePlayerController::APrototypePlayerController()
@@ -36,40 +34,6 @@ void APrototypePlayerController::InitializeInterface()
     if (IsMainMenuMap())
     {
         SetMenuOpen(true);
-    }
-    else
-    {
-        InitializeScenarioPanel();
-    }
-}
-
-void APrototypePlayerController::InitializeScenarioPanel()
-{
-    const APrototypeGameMode* GameMode = GetWorld()->GetAuthGameMode<APrototypeGameMode>();
-    AVirtualRealityPawn* PlayerPawn = Cast<AVirtualRealityPawn>(GetPawn());
-    if (!GameMode || !PlayerPawn || !ScenarioPanelClass)
-    {
-        return;
-    }
-    ScenarioDirector = GameMode->FindScenarioDirector();
-    if (!ScenarioDirector)
-    {
-        return;
-    }
-    if (!ScenarioPanel)
-    {
-        ScenarioPanel = CreateWidget<UUserWidget>(this, ScenarioPanelClass);
-    }
-    if (UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled())
-    {
-        PlayerPawn->ScenarioDisplay->SetOwnerPlayer(GetLocalPlayer());
-        PlayerPawn->ScenarioDisplay->SetWidget(ScenarioPanel);
-        PlayerPawn->ScenarioDisplay->SetVisibility(true);
-    }
-    else if (!ScenarioPanel->IsInViewport())
-    {
-        ScenarioPanel->AddToViewport();
-        ScenarioPanel->SetVisibility(ESlateVisibility::HitTestInvisible);
     }
 }
 

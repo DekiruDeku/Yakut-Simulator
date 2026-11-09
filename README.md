@@ -50,7 +50,7 @@
 | --- | --- |
 | BP_PrototypeGameMode | Классы BP игрока и контроллера, список карт меню |
 | BP_VirtualRealityPawn | Именованные Input Actions, контекст ввода, параметры игрока |
-| BP_PrototypePlayerController | Классы UMG меню и панели |
+| BP_PrototypePlayerController | Класс UMG главного меню |
 | BP_TrawlerVessel | Движение судна, коллизия и визуальные компоненты корпуса, палубы, рубки и рамы |
 | BP_Trawl | Класс создаваемой рыбы, ёмкость сети, длина троса и глубина лова |
 | BP_FishingWinch, BP_FishingSonar | Скорость лебёдки, дальность поиска и модели оборудования |
@@ -78,7 +78,9 @@ Scripts/ConfigureProjectBlueprints.py создаёт отсутствующие 
 
 Проверка физической основы 2026-11-09: DebugGame и Development собраны. На последней DebugGame-сборке прошли `YakutSimulator.Runtime.PhysicalDeck`, `YakutSimulator.Runtime.ItemInteraction.Fishing` и `YakutSimulator.Runtime.ItemInteraction.Clinic`. Дополнительно проверена установленная рукоятка хода: Pawn захватывает её, движение руки изменяет угол, тягу и скорость судна. Результаты и исходный неудачный прогон сохранены в `Saved/Verification/PhysicalFishing`. Физический VR-шлем, multiplayer, cook и packaged runtime не проверялись.
 
-`AVirtualRealityPawn` обрабатывает ввод и трекинг. `AWorkItem` управляет предметом, захватом и использованием. `UInteractionZoneComponent` проверяет размещение. `UWorkOperationComponent` хранит состояние операции. `AScenarioDirector` связывает операции и зависимости шагов. `WBP_MainMenu`, `WBP_MapEntry` и `WBP_ScenarioPanel` наследуются от стандартного `UUserWidget`. Вёрстка и обработчики находятся в UMG Blueprint; собственных C++-классов виджетов нет.
+`AVirtualRealityPawn` обрабатывает ввод и трекинг. `AWorkItem` управляет предметом, захватом и использованием. `UInteractionZoneComponent` проверяет размещение. `UWorkOperationComponent` хранит состояние операции. `AScenarioDirector` связывает операции и зависимости шагов. `WBP_MainMenu`, `WBP_MapEntry` и `WBP_FishingConsole` наследуются от стандартного `UUserWidget`. Вёрстка и обработчики находятся в UMG Blueprint; собственных C++-классов виджетов нет. Состояние рыбалки выводится на судовой консоли; отдельная панель сценария у игрока удалена.
+
+2026-11-09 удалены 19 Blueprint стартового XR-шаблона, устаревшая WBP_ScenarioPanel, 31 Input Action, 6 Input Mapping Context, 2 перечисления и 2 демонстрационные карты с данными освещения — всего 63 пакета. Наши карты и Blueprint не ссылались на старые шаблонные системы. Перечень удалённых пакетов и путь к резервным копиям находятся в Saved/TemplateCleanup/RemovalManifest.json. Код собран в DebugGame и Development; игровые проверки этой очистки не запускались по указанию пользователя.
 
 - `Source/YakutSimulator/Public` и `Private` — исходники общей базы.
 - `Content/Prototype/Input` — Input Actions и общий Input Mapping Context.
@@ -154,13 +156,13 @@ Scripts/ModelFishingAssets.py запускается в Blender и экспор�
 
 Ввод задаётся именованными свойствами AVirtualRealityPawn: InteractionMapping, GrabLeftAction, GrabRightAction, UseLeftAction, UseRightAction и остальные действия. Ассеты назначены в BP_VirtualRealityPawn; обработчики и автотесты используют непосредственно эти свойства. Индексного массива действий и загрузки по вычисляемым именам больше нет.
 
-MainMenuClass и ScenarioPanelClass задаются в контроллере. MainMenuMap задаётся в игровом режиме и по умолчанию берётся из GameDefaultMap. Панель читает конкретного директора из свойства ScenarioDirector владеющего контроллера, установленного до CreateWidget. Несколько настроенных директоров считаются неоднозначной конфигурацией.
+MainMenuClass задаётся в контроллере. MainMenuMap задаётся в игровом режиме и по умолчанию берётся из GameDefaultMap. Судовая консоль получает явную ссылку на FishingScenario. Несколько настроенных директоров считаются неоднозначной конфигурацией.
 
 ValidateSteps проверяет уникальность идентификаторов, отдельные операции, существование зависимостей и отсутствие циклов. Предметы, созданные после BeginPlay, регистрируются автоматически. При пересечении нескольких зон размещения выбирается ближайшая подходящая зона.
 
 Проверка до переноса UI, 2026-11-09: сборки DebugGame и Development успешны; два расширенных автотеста на DebugGame прошли. Проверены обратный порядок шагов, позднее создание предмета, передача директора панели, ближайшая зона и переходы через меню. Функция создания mapping проверена на временных объектах без сохранения ассетов. Физический шлем и packaged runtime в этот прогон не входили. Свидетельства находятся в Saved/Verification/InputAudit.
 
-Меню создаёт WBP_MapEntry для каждой записи ScenarioMaps. Каждая кнопка хранит собственный FScenarioMapEntry и передаёт soft-ссылку карты в OpenScenarioMap. Ошибки меню обновляются по OnMenuErrorChanged, панель — по OnScenarioChanged. Tick для обновления текста не используется. Scripts/CreatePrototypeUI.py пересобирает только три UI-ассета и не изменяет карты; перед повторной генерацией сохраняйте резервные копии этих пакетов.
+Меню создаёт WBP_MapEntry для каждой записи ScenarioMaps. Каждая кнопка хранит собственный FScenarioMapEntry и передаёт soft-ссылку карты в OpenScenarioMap. Ошибки меню обновляются по OnMenuErrorChanged. Tick для обновления текста не используется. Scripts/CreatePrototypeUI.py пересобирает только WBP_MainMenu и WBP_MapEntry и не изменяет карты; перед повторной генерацией сохраняйте резервные копии этих пакетов.
 
 
 Проверка переноса UI, 2026-11-09: DebugGame и Development собраны; все три Widget Blueprint скомпилированы. В desktop PIE через кнопки UMG открыты обе карты, проверены продолжение игры, повторное открытие меню, ошибка недоступной карты и возврат в L_MainMenu. Полный набор автотестов повторно не запускался. Итог находится в Saved/Verification/InputAudit/UMGSummary.json.

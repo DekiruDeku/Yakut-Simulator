@@ -83,14 +83,6 @@ AVirtualRealityPawn::AVirtualRealityPawn()
     MenuDisplay->SetRelativeScale3D(FVector(0.09));
     MenuDisplay->SetVisibility(false);
     MenuDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    ScenarioDisplay = CreateDefaultSubobject<UWidgetComponent>(TEXT("ScenarioDisplay"));
-    ScenarioDisplay->SetupAttachment(TrackingOrigin);
-    ScenarioDisplay->SetDrawSize(FVector2D(620, 400));
-    ScenarioDisplay->SetRelativeLocation(FVector(140, -105, 145));
-    ScenarioDisplay->SetRelativeRotation(FRotator(0, 145, 0));
-    ScenarioDisplay->SetRelativeScale3D(FVector(0.09));
-    ScenarioDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    ScenarioDisplay->SetVisibility(false);
 }
 
 bool AVirtualRealityPawn::IsVirtualRealityActive() const
@@ -116,7 +108,6 @@ void AVirtualRealityPawn::BeginPlay()
     else
     {
         Camera->SetRelativeLocation(FVector(0, 0, 165));
-        ScenarioDisplay->SetVisibility(false);
         LeftPointer->bEnableHitTesting = true;
         RightPointer->bEnableHitTesting = true;
     }
