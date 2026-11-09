@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
+#include "GameMapsSettings.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
 #include "InteractionZoneComponent.h"
@@ -57,6 +58,7 @@ public:
         Player = Cast<APrototypePlayerController>(World->GetFirstPlayerController());
         PlayerPawn = Cast<AVirtualRealityPawn>(Player->GetPawn());
         Inputs = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(Player->GetLocalPlayer());
+        ExistingDirector = World->GetAuthGameMode<APrototypeGameMode>()->FindScenarioDirector();
         InitialLocation = PlayerPawn->GetActorLocation();
         PrimaryItem = World->SpawnActor<AWorkItem>();
         SecondaryItem = World->SpawnActor<AWorkItem>();
@@ -153,6 +155,8 @@ public:
             case EItemInteractionPhase::GrabRight:
             {
                 Test->TestTrue(TEXT("Right Grip picks up the nearest item"), PlayerPawn->RightItem == PrimaryItem && PrimaryItem->bIsHeld);
+                Test->TestTrue(TEXT("A held item continues simulating physics"), PrimaryItem->Body->IsSimulatingPhysics());
+                Test->TestNull(TEXT("A held item is not attached to its hand"), PrimaryItem->GetAttachParentActor());
                 Test->TestFalse(TEXT("The other hand cannot take an already held item"), PrimaryItem->TryGrab(PlayerPawn->LeftHand));
                 Phase = EItemInteractionPhase::UseRight;
                 break;
@@ -257,7 +261,14 @@ public:
                 Test->TestEqual(TEXT("Reversed dependency order completes correctly"), Director->GetCompletedStepCount(), 2);
 
                 APrototypeGameMode* GameMode = World->GetAuthGameMode<APrototypeGameMode>();
-                Test->TestTrue(TEXT("The configured director is selected explicitly"), GameMode->FindScenarioDirector() == Director);
+                if (ExistingDirector)
+                {
+                    Test->TestNull(TEXT("Multiple configured directors are rejected"), GameMode->FindScenarioDirector());
+                }
+                else
+                {
+                    Test->TestTrue(TEXT("The configured director is selected explicitly"), GameMode->FindScenarioDirector() == Director);
+                }
 
                 SecondStep.RequiredSteps = { TEXT("Missing") };
                 Director->Steps = { SecondStep, FirstStep };
@@ -285,6 +296,7 @@ public:
                 APlacementStation* NearStation = World->SpawnActor<APlacementStation>(FVector(2015, 0, 200), FRotator::ZeroRotator);
                 const FTransform PreviousHandTransform = PlayerPawn->RightHand->GetComponentTransform();
                 PlayerPawn->RightHand->SetWorldLocation(NearStation->AcceptanceZone->GetComponentLocation());
+                PrimaryItem->Body->SetWorldLocation(NearStation->AcceptanceZone->GetComponentLocation(), false, nullptr, ETeleportType::TeleportPhysics);
                 PrimaryItem->TryGrab(PlayerPawn->RightHand);
                 PrimaryItem->Body->UpdateOverlaps();
                 PrimaryItem->Release(FVector::ZeroVector, FVector::ZeroVector);
@@ -319,6 +331,7 @@ private:
     FAutomationTestBase* Test;
     UWorld* World = nullptr;
     APrototypePlayerController* Player = nullptr;
+    AScenarioDirector* ExistingDirector = nullptr;
     AVirtualRealityPawn* PlayerPawn = nullptr;
     UEnhancedInputLocalPlayerSubsystem* Inputs = nullptr;
     AWorkItem* PrimaryItem = nullptr;
@@ -354,7 +367,9 @@ IMPLEMENT_COMPLEX_AUTOMATION_TEST(FItemInteractionTest, "YakutSimulator.Runtime.
 
 void FItemInteractionTest::GetTests(TArray<FString>& BeautifiedNames, TArray<FString>& TestCommands) const
 {
-    for (const FScenarioMapEntry& Entry : GetDefault<APrototypeGameMode>()->ScenarioMaps)
+    const UClass* GameModeClass = LoadClass<APrototypeGameMode>(nullptr, *UGameMapsSettings::GetGlobalDefaultGameMode());
+    const APrototypeGameMode* GameModeDefaults = GameModeClass->GetDefaultObject<APrototypeGameMode>();
+    for (const FScenarioMapEntry& Entry : GameModeDefaults->ScenarioMaps)
     {
         FString MapTestName = Entry.Map.ToSoftObjectPath().GetAssetName();
         MapTestName.RemoveFromStart(TEXT("L_"));

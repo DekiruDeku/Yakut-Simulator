@@ -14,11 +14,15 @@ UInteractionZoneComponent::UInteractionZoneComponent()
 
 bool UInteractionZoneComponent::CanAcceptItem(AWorkItem* Item) const
 {
-    if (!Item || Item->bIsHeld)
+    if (!Item || Item->bIsHeld || Item->bIsAnchored || bAcceptingItem)
     {
         return false;
     }
     if (!AcceptedItemType.IsNone() && Item->ItemType != AcceptedItemType)
+    {
+        return false;
+    }
+    if (AcceptanceRule.IsBound() && !AcceptanceRule.Execute(Item))
     {
         return false;
     }
@@ -31,6 +35,7 @@ bool UInteractionZoneComponent::TryAcceptItem(AWorkItem* Item)
     {
         return false;
     }
+    TGuardValue<bool> AcceptanceGuard(bAcceptingItem, true);
     if (bSnapOnPlacement)
     {
         Item->Body->SetSimulatePhysics(false);
@@ -38,5 +43,20 @@ bool UInteractionZoneComponent::TryAcceptItem(AWorkItem* Item)
         Item->SetActorLocationAndRotation(GetComponentLocation(), GetComponentRotation());
     }
     Item->OnItemAction.Broadcast(Item, EWorkAction::Placed);
+    OnItemAccepted.Broadcast(Item, this);
     return true;
+}
+
+void UInteractionZoneComponent::BeginPlay()
+{
+    Super::BeginPlay();
+    OnComponentBeginOverlap.AddUniqueDynamic(this, &UInteractionZoneComponent::ReceiveOverlap);
+}
+
+void UInteractionZoneComponent::ReceiveOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    if (bAcceptReleasedItemsOnOverlap)
+    {
+        TryAcceptItem(Cast<AWorkItem>(OtherActor));
+    }
 }

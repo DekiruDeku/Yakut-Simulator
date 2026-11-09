@@ -7,15 +7,10 @@
 #include "PrototypeGameMode.h"
 #include "Blueprint/UserWidget.h"
 #include "ScenarioDirector.h"
-#include "UObject/ConstructorHelpers.h"
 #include "VirtualRealityPawn.h"
 
 APrototypePlayerController::APrototypePlayerController()
 {
-    static ConstructorHelpers::FClassFinder<UUserWidget> DefaultMainMenuClass(TEXT("/Game/Prototype/UI/WBP_MainMenu"));
-    MainMenuClass = DefaultMainMenuClass.Class;
-    static ConstructorHelpers::FClassFinder<UUserWidget> DefaultScenarioPanelClass(TEXT("/Game/Prototype/UI/WBP_ScenarioPanel"));
-    ScenarioPanelClass = DefaultScenarioPanelClass.Class;
 }
 
 void APrototypePlayerController::BeginPlay()

@@ -7,6 +7,7 @@
 
 class AWorkItem;
 class UPointLightComponent;
+class UPhysicsHandleComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 
@@ -25,6 +26,18 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Item")
     TObjectPtr<USceneComponent> GripPoint;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Interaction")
+    TObjectPtr<UPhysicsHandleComponent> PhysicalGrip;
+
+    UPROPERTY(BlueprintReadOnly, Category="Interaction")
+    TObjectPtr<USceneComponent> HoldingHand;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Interaction")
+    bool bConstrainGripRotation = true;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Interaction")
+    bool bIsAnchored = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Item")
     TObjectPtr<UPointLightComponent> UseIndicator;
@@ -48,10 +61,13 @@ public:
     FWorkItemAction OnItemAction;
 
     UFUNCTION(BlueprintCallable, Category="Item")
-    bool TryGrab(USceneComponent* Hand);
+    virtual bool TryGrab(USceneComponent* Hand);
+
+    UFUNCTION(BlueprintPure, Category="Interaction")
+    virtual bool CanBeGrabbed() const;
 
     UFUNCTION(BlueprintCallable, Category="Item")
-    void Release(const FVector& LinearVelocity, const FVector& AngularVelocity);
+    virtual void Release(const FVector& LinearVelocity, const FVector& AngularVelocity);
 
     UFUNCTION(BlueprintCallable, Category="Item")
     void BeginUse();
@@ -66,5 +82,9 @@ public:
     void ReceiveUseEnded();
 
 protected:
+    virtual void Tick(float DeltaSeconds) override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+private:
+    void UpdateGripTarget();
 };

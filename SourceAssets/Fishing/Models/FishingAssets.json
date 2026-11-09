@@ -1,0 +1,246 @@
+{
+  "palette": {
+    "HullBlue": [
+      0.025,
+      0.12,
+      0.16,
+      1
+    ],
+    "DeckDark": [
+      0.075,
+      0.1,
+      0.105,
+      1
+    ],
+    "Ivory": [
+      0.72,
+      0.73,
+      0.66,
+      1
+    ],
+    "SafetyOrange": [
+      0.65,
+      0.19,
+      0.035,
+      1
+    ],
+    "Steel": [
+      0.38,
+      0.43,
+      0.44,
+      1
+    ],
+    "DarkSteel": [
+      0.06,
+      0.075,
+      0.08,
+      1
+    ],
+    "Rubber": [
+      0.018,
+      0.025,
+      0.027,
+      1
+    ],
+    "WindowGlass": [
+      0.025,
+      0.07,
+      0.09,
+      1
+    ],
+    "Rope": [
+      0.36,
+      0.31,
+      0.2,
+      1
+    ],
+    "NetGreen": [
+      0.08,
+      0.22,
+      0.15,
+      1
+    ],
+    "FloatYellow": [
+      0.87,
+      0.61,
+      0.1,
+      1
+    ],
+    "CrateBlue": [
+      0.035,
+      0.24,
+      0.32,
+      1
+    ],
+    "FishSilver": [
+      0.5,
+      0.62,
+      0.61,
+      1
+    ],
+    "FishBack": [
+      0.12,
+      0.24,
+      0.22,
+      1
+    ],
+    "FishBlue": [
+      0.22,
+      0.36,
+      0.42,
+      1
+    ],
+    "Eye": [
+      0.007,
+      0.009,
+      0.01,
+      1
+    ],
+    "Stone": [
+      0.12,
+      0.14,
+      0.13,
+      1
+    ]
+  },
+  "assets": {
+    "SM_TrawlerHull": {
+      "collision": "complex",
+      "materials": [
+        "HullBlue",
+        "Steel",
+        "SafetyOrange",
+        "Rubber",
+        "Rope"
+      ]
+    },
+    "SM_TrawlerDeck": {
+      "collision": "deck",
+      "materials": [
+        "DeckDark",
+        "DarkSteel"
+      ]
+    },
+    "SM_Wheelhouse": {
+      "collision": "complex",
+      "materials": [
+        "Ivory",
+        "HullBlue",
+        "DarkSteel",
+        "WindowGlass",
+        "Rubber",
+        "Steel",
+        "SafetyOrange",
+        "FloatYellow"
+      ]
+    },
+    "SM_SternFrame": {
+      "collision": "complex",
+      "materials": [
+        "SafetyOrange",
+        "DarkSteel",
+        "Steel"
+      ]
+    },
+    "SM_WinchBase": {
+      "collision": "complex",
+      "materials": [
+        "DarkSteel",
+        "SafetyOrange",
+        "Steel",
+        "HullBlue"
+      ]
+    },
+    "SM_WinchDrum": {
+      "collision": "complex",
+      "materials": [
+        "DarkSteel",
+        "Steel",
+        "Rope"
+      ]
+    },
+    "SM_TrawlNet": {
+      "collision": "none",
+      "materials": [
+        "Rope",
+        "NetGreen",
+        "FloatYellow"
+      ]
+    },
+    "SM_FishCod": {
+      "collision": "fish",
+      "materials": [
+        "FishSilver",
+        "FishBack",
+        "Eye"
+      ]
+    },
+    "SM_FishHaddock": {
+      "collision": "fish",
+      "materials": [
+        "FishSilver",
+        "FishBlue",
+        "Eye"
+      ]
+    },
+    "SM_FishingKnife": {
+      "collision": "convex",
+      "materials": [
+        "Rubber",
+        "Steel"
+      ]
+    },
+    "SM_SharpeningStone": {
+      "collision": "complex",
+      "materials": [
+        "Rubber",
+        "Stone"
+      ]
+    },
+    "SM_FishingConveyor": {
+      "collision": "complex",
+      "materials": [
+        "Rubber",
+        "Steel",
+        "DarkSteel",
+        "SafetyOrange"
+      ]
+    },
+    "SM_ProcessingBench": {
+      "collision": "complex",
+      "materials": [
+        "Steel",
+        "DarkSteel"
+      ]
+    },
+    "SM_FishingFreezer": {
+      "collision": "complex",
+      "materials": [
+        "Ivory",
+        "Rubber",
+        "Steel"
+      ]
+    },
+    "SM_FishingCrate": {
+      "collision": "crate",
+      "materials": [
+        "CrateBlue"
+      ]
+    },
+    "SM_SonarDisplay": {
+      "collision": "complex",
+      "materials": [
+        "DarkSteel",
+        "Steel"
+      ]
+    },
+    "SM_ControlConsole": {
+      "collision": "complex",
+      "materials": [
+        "HullBlue",
+        "DarkSteel",
+        "Steel"
+      ]
+    }
+  }
+}

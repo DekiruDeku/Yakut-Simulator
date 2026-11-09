@@ -17,12 +17,12 @@ def ObjectArgument(Object):
     return {'refPath': Object.get_path_name()}
 
 
-def GetBlueprint(Name):
-    Blueprint = unreal.load_asset(UIFolder + '/' + Name)
+def GetBlueprint(Name, Folder=UIFolder):
+    Blueprint = unreal.load_asset(Folder + '/' + Name)
     if not Blueprint:
         Factory = unreal.WidgetBlueprintFactory()
         Factory.set_editor_property('parent_class', unreal.UserWidget.static_class())
-        Blueprint = unreal.AssetToolsHelpers.get_asset_tools().create_asset(Name, UIFolder, unreal.WidgetBlueprint, Factory)
+        Blueprint = unreal.AssetToolsHelpers.get_asset_tools().create_asset(Name, Folder, unreal.WidgetBlueprint, Factory)
     return Blueprint
 
 
@@ -125,8 +125,6 @@ def BuildDesigners():
     return Entry, Menu, Panel
 
 
-EntryBlueprint, MainMenuBlueprint, ScenarioPanelBlueprint = BuildDesigners()
-print('UMG designer assets saved')
 
 
 
@@ -261,14 +259,20 @@ def BuildPanelGraph(Blueprint):
     BlueprintTools.compile_blueprint(Blueprint)
 
 
-BuildEntryGraph(EntryBlueprint)
-BuildMenuGraph(MainMenuBlueprint)
-BuildPanelGraph(ScenarioPanelBlueprint)
-for Blueprint in [EntryBlueprint, MainMenuBlueprint, ScenarioPanelBlueprint]:
-    for Graph in BlueprintTools.list_graphs(Blueprint):
-        BlueprintTools.arrange_nodes(BlueprintTools.find_nodes(Graph))
-    unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
-print('UMG graphs compiled and saved')
+def BuildPrototypeInterface():
+    EntryBlueprint, MainMenuBlueprint, ScenarioPanelBlueprint = BuildDesigners()
+    BuildEntryGraph(EntryBlueprint)
+    BuildMenuGraph(MainMenuBlueprint)
+    BuildPanelGraph(ScenarioPanelBlueprint)
+    for Blueprint in [EntryBlueprint, MainMenuBlueprint, ScenarioPanelBlueprint]:
+        for Graph in BlueprintTools.list_graphs(Blueprint):
+            BlueprintTools.arrange_nodes(BlueprintTools.find_nodes(Graph))
+        unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
+    print('UMG graphs compiled and saved')
+
+
+if __name__ == '__main__':
+    BuildPrototypeInterface()
 
 
 

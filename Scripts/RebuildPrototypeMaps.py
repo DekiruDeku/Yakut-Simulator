@@ -1,4 +1,8 @@
 import unreal
+import sys
+
+sys.path.append(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()+'Scripts'))
+from ConfigureFishingOcean import ConfigureFishingOcean
 
 
 ActorSubsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -47,7 +51,6 @@ Teal = Material("M_Teal", (0.025, 0.22, 0.24))
 Steel = Material("M_Steel", (0.29, 0.34, 0.38), 0.45, 0.4)
 DarkSteel = Material("M_DarkSteel", (0.065, 0.085, 0.10), 0.6, 0.25)
 Glass = Material("M_Window", (0.045, 0.12, 0.17), 0.25, 0.2)
-Ocean = Material("M_Ocean", (0.025, 0.12, 0.19), 0.45)
 Orange = Material("M_Orange", (0.72, 0.22, 0.045))
 Rubber = Material("M_Rubber", (0.025, 0.035, 0.045), 0.95)
 White = Material("M_ClinicWhite", (0.60, 0.64, 0.65))
@@ -112,7 +115,7 @@ def Items():
 
 
 Prepare("L_Fishing")
-Shape("Ocean", (300, 0, -95), (400, 400, 0.1), Ocean)
+ConfigureFishingOcean(SaveMap=False)
 Shape("Hull", (350, 0, -45), (14, 8, 0.9), DarkSteel)
 Shape("Deck", (350, 0, -5), (14, 8, 0.1), Deck)
 for SeamIndex in range(16):

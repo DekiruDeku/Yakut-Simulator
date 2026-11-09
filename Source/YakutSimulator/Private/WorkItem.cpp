@@ -3,10 +3,13 @@
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "InteractionZoneComponent.h"
+#include "PhysicsEngine/PhysicsHandleComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
 AWorkItem::AWorkItem()
 {
+    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.TickGroup = TG_PrePhysics;
     Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
     SetRootComponent(Body);
     static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultShape(TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -23,6 +26,13 @@ AWorkItem::AWorkItem()
 
     GripPoint = CreateDefaultSubobject<USceneComponent>(TEXT("GripPoint"));
     GripPoint->SetupAttachment(Body);
+    PhysicalGrip = CreateDefaultSubobject<UPhysicsHandleComponent>(TEXT("PhysicalGrip"));
+    PhysicalGrip->SetLinearStiffness(6000);
+    PhysicalGrip->SetLinearDamping(400);
+    PhysicalGrip->SetAngularStiffness(3000);
+    PhysicalGrip->SetAngularDamping(500);
+    PhysicalGrip->bInterpolateTarget = false;
+    PhysicalGrip->PrimaryComponentTick.AddPrerequisite(this, PrimaryActorTick);
     UseIndicator = CreateDefaultSubobject<UPointLightComponent>(TEXT("UseIndicator"));
     UseIndicator->SetupAttachment(Body);
     UseIndicator->SetRelativeLocation(FVector(0, 0, 80));
@@ -36,19 +46,36 @@ AWorkItem::AWorkItem()
 
 bool AWorkItem::TryGrab(USceneComponent* Hand)
 {
-    if (bIsHeld || !Hand)
+    if (!CanBeGrabbed() || !Hand)
     {
         return false;
     }
     EndUse();
-    Body->SetSimulatePhysics(false);
-    AttachToComponent(Hand, FAttachmentTransformRules::KeepWorldTransform);
-    const FTransform GripLocal = GripPoint->GetComponentTransform().GetRelativeTransform(GetActorTransform());
-    SetActorRelativeRotation(GripLocal.GetRotation().Inverse());
-    SetActorRelativeLocation(-GripLocal.GetRotation().Inverse().RotateVector(GripLocal.GetLocation() * GetRootComponent()->GetRelativeScale3D()));
+    Body->SetSimulatePhysics(true);
+    Body->WakeAllRigidBodies();
+    if (bConstrainGripRotation)
+    {
+        PhysicalGrip->GrabComponentAtLocationWithRotation(Body, NAME_None, GripPoint->GetComponentLocation(), GripPoint->GetComponentRotation());
+    }
+    else
+    {
+        PhysicalGrip->GrabComponentAtLocation(Body, NAME_None, GripPoint->GetComponentLocation());
+    }
+    if (!PhysicalGrip->GetGrabbedComponent())
+    {
+        return false;
+    }
+    HoldingHand = Hand;
+    AddTickPrerequisiteActor(Hand->GetOwner());
+    UpdateGripTarget();
     bIsHeld = true;
     OnItemAction.Broadcast(this, EWorkAction::Grabbed);
     return true;
+}
+
+bool AWorkItem::CanBeGrabbed() const
+{
+    return !bIsHeld;
 }
 
 void AWorkItem::Release(const FVector& LinearVelocity, const FVector& AngularVelocity)
@@ -58,12 +85,25 @@ void AWorkItem::Release(const FVector& LinearVelocity, const FVector& AngularVel
         return;
     }
     EndUse();
-    DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+    PhysicalGrip->ReleaseComponent();
+    if (IsValid(HoldingHand))
+    {
+        RemoveTickPrerequisiteActor(HoldingHand->GetOwner());
+    }
+    HoldingHand = nullptr;
     bIsHeld = false;
     Body->SetSimulatePhysics(true);
-    Body->SetPhysicsLinearVelocity(LinearVelocity.GetClampedToMaxSize(1800));
-    Body->SetPhysicsAngularVelocityInRadians(AngularVelocity.GetClampedToMaxSize(30));
+    if (!bIsAnchored)
+    {
+        Body->SetPhysicsLinearVelocity(LinearVelocity.GetClampedToMaxSize(1800));
+        Body->SetPhysicsAngularVelocityInRadians(AngularVelocity.GetClampedToMaxSize(30));
+    }
     OnItemAction.Broadcast(this, EWorkAction::Released);
+
+    if (bIsAnchored)
+    {
+        return;
+    }
 
     TArray<UPrimitiveComponent*> OverlappingComponents;
     Body->GetOverlappingComponents(OverlappingComponents);
@@ -88,6 +128,43 @@ void AWorkItem::Release(const FVector& LinearVelocity, const FVector& AngularVel
     {
         ClosestZone->TryAcceptItem(this);
     }
+}
+
+void AWorkItem::Tick(float DeltaSeconds)
+{
+    Super::Tick(DeltaSeconds);
+    if (!bIsHeld)
+    {
+        return;
+    }
+    if (!IsValid(HoldingHand))
+    {
+        Release(FVector::ZeroVector, FVector::ZeroVector);
+        return;
+    }
+    UpdateGripTarget();
+}
+
+void AWorkItem::UpdateGripTarget()
+{
+    FVector Target = HoldingHand->GetComponentLocation();
+    if (bConstrainGripRotation)
+    {
+        const FQuat BodyRotation = HoldingHand->GetComponentQuat() * GripPoint->GetComponentQuat().Inverse() * Body->GetComponentQuat();
+        const FVector GripOffset = BodyRotation.RotateVector(Body->GetComponentQuat().Inverse().RotateVector(GripPoint->GetComponentLocation() - Body->GetComponentLocation()));
+        const FBoxSphereBounds Shape = Body->CalcBounds(FTransform(FQuat::Identity, FVector::ZeroVector, Body->GetComponentScale()));
+        const FVector DesiredBoundsOffset = BodyRotation.RotateVector(Shape.Origin);
+        FCollisionQueryParams Query;
+        Query.AddIgnoredActor(this);
+        Query.AddIgnoredActor(HoldingHand->GetOwner());
+        FHitResult Obstacle;
+        if (GetWorld()->SweepSingleByChannel(Obstacle, Body->Bounds.Origin, Target - GripOffset + DesiredBoundsOffset, Body->GetComponentQuat(), Body->GetCollisionObjectType(), FCollisionShape::MakeBox(Shape.BoxExtent), Query)
+            && !Obstacle.bStartPenetrating)
+        {
+            Target = Obstacle.Location + Obstacle.Normal * 0.5f - DesiredBoundsOffset + GripOffset;
+        }
+    }
+    PhysicalGrip->SetTargetLocationAndRotation(Target, HoldingHand->GetComponentRotation());
 }
 
 void AWorkItem::BeginUse()
@@ -125,5 +202,8 @@ void AWorkItem::ReceiveUseEnded_Implementation()
 void AWorkItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     EndUse();
+    PhysicalGrip->ReleaseComponent();
+    HoldingHand = nullptr;
+    bIsHeld = false;
     Super::EndPlay(EndPlayReason);
 }

@@ -1,4 +1,8 @@
 import unreal
+import sys
+
+sys.path.append(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()+'Scripts'))
+from ConfigureProjectBlueprints import GetConfiguredClass,GetBlueprintClass
 
 
 AssetTools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -15,15 +19,6 @@ def CreateAsset(Name, Folder, AssetClass, Factory):
     if not Asset:
         raise RuntimeError("Asset creation failed: " + Path)
     return Asset
-
-
-def CreateBlueprint(Name, ParentClass, Folder):
-    Factory = unreal.BlueprintFactory()
-    Factory.set_editor_property("parent_class", ParentClass)
-    Blueprint = CreateAsset(Name, Folder, unreal.Blueprint, Factory)
-    unreal.BlueprintEditorLibrary.compile_blueprint(Blueprint)
-    unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
-    return Blueprint.generated_class()
 
 
 def CreateDataAsset(Name, AssetClass):
@@ -124,12 +119,11 @@ AddMapping(Context, Actions["IA_DesktopMove"], "A", [Negate()])
 AddMapping(Context, Actions["IA_DesktopLook"], "Mouse2D")
 unreal.EditorAssetLibrary.save_loaded_asset(Context)
 
-CreateBlueprint("BP_WorkItem", unreal.WorkItem, Root + "/Blueprints")
 UIAssetNames = ["WBP_MainMenu", "WBP_ScenarioPanel", "WBP_MapEntry"]
 if not all(unreal.EditorAssetLibrary.does_asset_exist(Root + "/UI/" + Name) for Name in UIAssetNames):
     UIScriptPath = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir() + "Scripts/CreatePrototypeUI.py")
     with open(UIScriptPath, encoding="utf-8-sig") as UIScriptFile:
-        exec(compile(UIScriptFile.read(), UIScriptPath, "exec"), {})
+        exec(compile(UIScriptFile.read(), UIScriptPath, "exec"), {"__name__": "__main__"})
 
 FloorMaterial = CreateMaterial("M_Floor", (0.12, 0.15, 0.19))
 WallMaterial = CreateMaterial("M_Wall", (0.42, 0.48, 0.55))
@@ -142,7 +136,7 @@ PlacementMaterial = CreateMaterial("M_Placement", (0.05, 0.65, 0.45))
 def Spawn(ActorClass, Name, Position, Rotation=None):
     if Rotation is None:
         Rotation = unreal.Rotator()
-    Actor = ActorSubsystem.spawn_actor_from_class(ActorClass, unreal.Vector(*Position), Rotation)
+    Actor = ActorSubsystem.spawn_actor_from_class(GetConfiguredClass(ActorClass,Name), unreal.Vector(*Position), Rotation)
     Actor.set_actor_label(Name)
     return Actor
 
@@ -169,7 +163,7 @@ for MapName, Title, ItemMaterial in MapDefinitions:
     if not LevelSubsystem.new_level(MapPath):
         raise RuntimeError("Map creation failed: " + MapPath)
     World = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-    World.get_world_settings().set_editor_property("default_game_mode", unreal.PrototypeGameMode)
+    World.get_world_settings().set_editor_property("default_game_mode", GetBlueprintClass('PrototypeGameMode'))
     Geometry("Floor", (80, 0, -10), (10, 10, 0.2), FloorMaterial)
     Geometry("BackWall", (450, 0, 140), (0.15, 10, 3), WallMaterial)
     Geometry("LeftWall", (80, -490, 140), (10, 0.15, 3), WallMaterial)
@@ -192,9 +186,8 @@ for MapName, Title, ItemMaterial in MapDefinitions:
         Station = Spawn(unreal.PlacementStation, "PlacementStation", (145, 20, 98))
         Station.surface.set_material(0, PlacementMaterial)
         Station.acceptance_zone.set_editor_property("accepted_item_type", "PracticeItem")
-        ItemClass = unreal.load_class(None, Root + "/Blueprints/BP_WorkItem.BP_WorkItem_C")
         for ItemIndex, Side in enumerate([-20, 20]):
-            Item = Spawn(ItemClass, "PracticeItem" + str(ItemIndex + 1), (70, Side, 106))
+            Item = Spawn(unreal.WorkItem, "PracticeItem" + str(ItemIndex + 1), (70, Side, 106))
             Item.body.set_material(0, ItemMaterial)
             Item.set_editor_property("display_name", unreal.Text("Учебный предмет " + str(ItemIndex + 1)))
         Geometry("EquipmentShelf", (360, 0, 110), (0.55, 3.8, 0.12), TableMaterial)

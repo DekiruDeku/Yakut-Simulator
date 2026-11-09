@@ -6,6 +6,7 @@
 *.lo
 *.o
 *.obj
+!SourceAssets/**/*.obj
 
 # Precompiled Headers
 *.gch
@@ -76,3 +77,5 @@ Plugins/**/Intermediate/*
 DerivedDataCache/*
 /.codex
 AGENTS.md
+__pycache__/
+*.blend1

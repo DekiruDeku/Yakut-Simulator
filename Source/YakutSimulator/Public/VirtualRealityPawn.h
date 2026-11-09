@@ -11,6 +11,7 @@ class UInputAction;
 class UInputMappingContext;
 class UUserWidget;
 class UMotionControllerComponent;
+class UPrimitiveComponent;
 class UStaticMeshComponent;
 class UWidgetComponent;
 class UWidgetInteractionComponent;
@@ -55,6 +56,9 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category="Interaction")
     TObjectPtr<AWorkItem> RightItem;
+
+    UPROPERTY(BlueprintReadOnly, Category="Movement")
+    TObjectPtr<UPrimitiveComponent> MovementBase;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interaction")
     float GrabRadius = 30;
@@ -155,6 +159,7 @@ private:
     bool bTeleportCancelled = false;
     FVector TeleportDestination = FVector::ZeroVector;
     FVector2D DesktopMovement = FVector2D::ZeroVector;
+    FTransform PreviousBaseTransform;
 
     bool IsMenuOpen() const;
     bool IsVirtualRealityActive() const;
@@ -162,6 +167,9 @@ private:
     void UpdatePointer(UWidgetInteractionComponent* Pointer, UStaticMeshComponent* Ray);
     void UpdateTeleport();
     void CommitTeleport();
+    void UpdateMovementBase();
+    void SetMovementBase(UPrimitiveComponent* Base);
+    void MoveHeldItemsWithPlayer(const FTransform& PreviousPlayerTransform);
     void ProcessGrip(bool bLeftHand, float Value);
     void ProcessUse(bool bLeftHand, float Value);
 

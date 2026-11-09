@@ -8,6 +8,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
+#include "GameFramework/MovementComponent.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
@@ -22,30 +23,6 @@
 AVirtualRealityPawn::AVirtualRealityPawn()
 {
     PrimaryActorTick.bCanEverTick = true;
-    static ConstructorHelpers::FObjectFinder<UInputMappingContext> DefaultInteractionMapping(TEXT("/Game/Prototype/Input/IMC_Interaction.IMC_Interaction"));
-    InteractionMapping = DefaultInteractionMapping.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultGrabLeftAction(TEXT("/Game/Prototype/Input/IA_GrabLeft.IA_GrabLeft"));
-    GrabLeftAction = DefaultGrabLeftAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultGrabRightAction(TEXT("/Game/Prototype/Input/IA_GrabRight.IA_GrabRight"));
-    GrabRightAction = DefaultGrabRightAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultUseLeftAction(TEXT("/Game/Prototype/Input/IA_UseLeft.IA_UseLeft"));
-    UseLeftAction = DefaultUseLeftAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultUseRightAction(TEXT("/Game/Prototype/Input/IA_UseRight.IA_UseRight"));
-    UseRightAction = DefaultUseRightAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultTeleportAction(TEXT("/Game/Prototype/Input/IA_Teleport.IA_Teleport"));
-    TeleportAction = DefaultTeleportAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultSnapTurnAction(TEXT("/Game/Prototype/Input/IA_SnapTurn.IA_SnapTurn"));
-    SnapTurnAction = DefaultSnapTurnAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultToggleMenuAction(TEXT("/Game/Prototype/Input/IA_ToggleMenu.IA_ToggleMenu"));
-    ToggleMenuAction = DefaultToggleMenuAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultCancelAction(TEXT("/Game/Prototype/Input/IA_Cancel.IA_Cancel"));
-    CancelAction = DefaultCancelAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultDesktopMoveAction(TEXT("/Game/Prototype/Input/IA_DesktopMove.IA_DesktopMove"));
-    DesktopMoveAction = DefaultDesktopMoveAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultDesktopLookAction(TEXT("/Game/Prototype/Input/IA_DesktopLook.IA_DesktopLook"));
-    DesktopLookAction = DefaultDesktopLookAction.Object;
-    static ConstructorHelpers::FObjectFinder<UInputAction> DefaultTeleportHoldAction(TEXT("/Game/Prototype/Input/IA_TeleportHold.IA_TeleportHold"));
-    TeleportHoldAction = DefaultTeleportHoldAction.Object;
     TrackingOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("TrackingOrigin"));
     SetRootComponent(TrackingOrigin);
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
@@ -140,19 +117,25 @@ void AVirtualRealityPawn::BeginPlay()
     {
         Camera->SetRelativeLocation(FVector(0, 0, 165));
         ScenarioDisplay->SetVisibility(false);
-        LeftPointer->bEnableHitTesting = false;
-        RightPointer->bEnableHitTesting = false;
+        LeftPointer->bEnableHitTesting = true;
+        RightPointer->bEnableHitTesting = true;
     }
 }
 
 void AVirtualRealityPawn::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    UpdateMovementBase();
+    if (!IsValid(LeftItem) || !LeftItem->bIsHeld)
+    {
+        LeftItem = nullptr;
+    }
+    if (!IsValid(RightItem) || !RightItem->bIsHeld)
+    {
+        RightItem = nullptr;
+    }
     if (!IsVirtualRealityActive())
     {
-        const FTransform View = Camera->GetComponentTransform();
-        LeftHand->SetWorldLocationAndRotation(View.TransformPosition(FVector(65, -18, -40)), View.GetRotation());
-        RightHand->SetWorldLocationAndRotation(View.TransformPosition(FVector(65, 18, -40)), View.GetRotation());
         if (!IsMenuOpen() && !DesktopMovement.IsNearlyZero())
         {
             const FVector Movement = GetActorForwardVector() * DesktopMovement.Y + GetActorRightVector() * DesktopMovement.X;
@@ -165,6 +148,11 @@ void AVirtualRealityPawn::Tick(float DeltaSeconds)
                 SetActorLocation(Destination);
             }
         }
+        const FTransform UpdatedView = Camera->GetComponentTransform();
+        LeftAim->SetWorldLocationAndRotation(UpdatedView.GetLocation(), UpdatedView.GetRotation());
+        RightAim->SetWorldLocationAndRotation(UpdatedView.GetLocation(), UpdatedView.GetRotation());
+        LeftHand->SetWorldLocationAndRotation(UpdatedView.TransformPosition(FVector(65, -18, -40)), UpdatedView.GetRotation());
+        RightHand->SetWorldLocationAndRotation(UpdatedView.TransformPosition(FVector(65, 18, -40)), UpdatedView.GetRotation());
     }
     UpdateMotion(LeftHand, LeftMotion, DeltaSeconds);
     UpdateMotion(RightHand, RightMotion, DeltaSeconds);
@@ -210,6 +198,78 @@ void AVirtualRealityPawn::UpdateMotion(USceneComponent* Hand, FHandMotionState& 
     Motion.bInitialized = true;
 }
 
+void AVirtualRealityPawn::SetMovementBase(UPrimitiveComponent* Base)
+{
+    if (MovementBase == Base)
+    {
+        return;
+    }
+    if (IsValid(MovementBase))
+    {
+        RemoveTickPrerequisiteActor(MovementBase->GetAttachmentRootActor());
+        TInlineComponentArray<UMovementComponent*> Movements(MovementBase->GetAttachmentRootActor());
+        for (UMovementComponent* Movement : Movements)
+        {
+            RemoveTickPrerequisiteComponent(Movement);
+        }
+    }
+    MovementBase = Base;
+    if (MovementBase)
+    {
+        PreviousBaseTransform = MovementBase->GetComponentTransform();
+        AddTickPrerequisiteActor(MovementBase->GetAttachmentRootActor());
+        TInlineComponentArray<UMovementComponent*> Movements(MovementBase->GetAttachmentRootActor());
+        for (UMovementComponent* Movement : Movements)
+        {
+            AddTickPrerequisiteComponent(Movement);
+        }
+    }
+}
+
+void AVirtualRealityPawn::UpdateMovementBase()
+{
+    if (IsValid(MovementBase))
+    {
+        const FTransform CurrentBaseTransform = MovementBase->GetComponentTransform();
+        SetActorLocation(CurrentBaseTransform.TransformPosition(PreviousBaseTransform.InverseTransformPosition(GetActorLocation())));
+        AddActorWorldRotation(FRotator(0, (CurrentBaseTransform.GetRotation() * PreviousBaseTransform.GetRotation().Inverse()).Rotator().Yaw, 0));
+        PreviousBaseTransform = CurrentBaseTransform;
+    }
+    FHitResult Floor;
+    FCollisionQueryParams Query;
+    Query.AddIgnoredActor(this);
+    const FVector Feet(Camera->GetComponentLocation().X, Camera->GetComponentLocation().Y, GetActorLocation().Z);
+    if (GetWorld()->LineTraceSingleByChannel(Floor, Feet + FVector(0, 0, 35), Feet - FVector(0, 0, 60), ECC_Visibility, Query)
+        && Floor.ImpactNormal.Z > 0.9f
+        && Floor.GetComponent()->Mobility == EComponentMobility::Movable)
+    {
+        SetMovementBase(Floor.GetComponent());
+    }
+    else
+    {
+        SetMovementBase(nullptr);
+    }
+}
+
+void AVirtualRealityPawn::MoveHeldItemsWithPlayer(const FTransform& PreviousPlayerTransform)
+{
+    for (AWorkItem* Item : { LeftItem.Get(), RightItem.Get() })
+    {
+        if (!IsValid(Item))
+        {
+            continue;
+        }
+        if (Item->bIsAnchored)
+        {
+            Item->Release(FVector::ZeroVector, FVector::ZeroVector);
+            continue;
+        }
+        const FTransform RelativeBody = Item->Body->GetComponentTransform().GetRelativeTransform(PreviousPlayerTransform);
+        const FTransform Destination = RelativeBody * GetActorTransform();
+        Item->Body->SetWorldLocationAndRotation(Destination.GetLocation(), Destination.GetRotation(), false, nullptr, ETeleportType::TeleportPhysics);
+    }
+}
+
 bool AVirtualRealityPawn::TryGrabItem(bool bLeftHand)
 {
     if (IsMenuOpen())
@@ -236,9 +296,9 @@ bool AVirtualRealityPawn::TryGrabItem(bool bLeftHand)
     for (const FOverlapResult& Overlap : Overlaps)
     {
         AWorkItem* Candidate = Cast<AWorkItem>(Overlap.GetActor());
-        if (Candidate && !Candidate->bIsHeld)
+        if (Candidate && Candidate->CanBeGrabbed())
         {
-            const float Distance = FVector::DistSquared(Candidate->GetActorLocation(), Hand->GetComponentLocation());
+            const float Distance = FVector::DistSquared(Candidate->GripPoint->GetComponentLocation(), Hand->GetComponentLocation());
             if (Distance < ClosestDistance)
             {
                 ClosestItem = Candidate;
@@ -317,6 +377,11 @@ void AVirtualRealityPawn::SetItemUse(bool bLeftHand, bool bUse)
     {
         Item->BeginUse();
     }
+    else if (Pointer->IsOverHitTestVisibleWidget())
+    {
+        Pointer->PressPointerKey(EKeys::LeftMouseButton);
+        *PointerPressed = true;
+    }
 }
 
 void AVirtualRealityPawn::ReleaseAllItems()
@@ -345,7 +410,7 @@ void AVirtualRealityPawn::ShowMenu(UUserWidget* Menu, bool bShow)
 
 void AVirtualRealityPawn::UpdatePointer(UWidgetInteractionComponent* Pointer, UStaticMeshComponent* Ray)
 {
-    Ray->SetVisibility(IsMenuOpen() && IsVirtualRealityActive());
+    Ray->SetVisibility(IsVirtualRealityActive() && (IsMenuOpen() || Pointer->IsOverHitTestVisibleWidget()));
     if (!Ray->IsVisible())
     {
         return;
@@ -455,7 +520,7 @@ void AVirtualRealityPawn::UpdateTeleport()
     Parameters.OverrideGravityZ = -980;
     FPredictProjectilePathResult Result;
     UGameplayStatics::PredictProjectilePath(this, Parameters, Result);
-    bTeleportValid = Result.HitResult.bBlockingHit && Result.HitResult.ImpactNormal.Z > 0.95f && Result.HitResult.GetComponent()->GetCollisionObjectType() == ECC_WorldStatic && FMath::Abs(Result.HitResult.ImpactPoint.Z - GetActorLocation().Z) < 15;
+    bTeleportValid = Result.HitResult.bBlockingHit && Result.HitResult.ImpactNormal.Z > 0.95f && !Result.HitResult.GetComponent()->IsSimulatingPhysics() && FMath::Abs(Result.HitResult.ImpactPoint.Z - GetActorLocation().Z) < 15;
     if (bTeleportValid)
     {
         TeleportDestination = Result.HitResult.ImpactPoint;
@@ -472,7 +537,10 @@ void AVirtualRealityPawn::CommitTeleport()
     }
     FVector HeadOffset = Camera->GetComponentLocation() - GetActorLocation();
     HeadOffset.Z = 0;
+    const FTransform PreviousPlayerTransform = GetActorTransform();
     SetActorLocation(TeleportDestination - HeadOffset);
+    MoveHeldItemsWithPlayer(PreviousPlayerTransform);
+    SetMovementBase(nullptr);
     LeftMotion = FHandMotionState();
     RightMotion = FHandMotionState();
 }
@@ -499,11 +567,13 @@ void AVirtualRealityPawn::Turn(const FInputActionValue& Value)
     {
         return;
     }
+    const FTransform PreviousPlayerTransform = GetActorTransform();
     const FVector PreviousHeadPosition = Camera->GetComponentLocation();
     AddActorWorldRotation(FRotator(0, FMath::Sign(Amount) * 30, 0));
     FVector HeadCorrection = PreviousHeadPosition - Camera->GetComponentLocation();
     HeadCorrection.Z = 0;
     AddActorWorldOffset(HeadCorrection);
+    MoveHeldItemsWithPlayer(PreviousPlayerTransform);
     bTurnReady = false;
     LeftMotion = FHandMotionState();
     RightMotion = FHandMotionState();

@@ -5,6 +5,10 @@
   "Description": "",
   "Plugins": [
     {
+      "Name": "Water",
+      "Enabled": true
+    },
+    {
       "Name": "OpenXR",
       "Enabled": true
     },

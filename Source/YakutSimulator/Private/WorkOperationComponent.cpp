@@ -23,11 +23,11 @@ void UWorkOperationComponent::SetAvailable(bool bAvailable)
 
 bool UWorkOperationComponent::TryBeginOperation(AWorkItem* Item)
 {
-    if (State != EWorkOperationState::Ready || !Item)
+    if (State != EWorkOperationState::Ready || (!Item && !bUseExplicitResults))
     {
         return false;
     }
-    if (!RequiredItemType.IsNone() && Item->ItemType != RequiredItemType)
+    if (!RequiredItemType.IsNone() && (!Item || Item->ItemType != RequiredItemType))
     {
         return false;
     }
@@ -38,7 +38,7 @@ bool UWorkOperationComponent::TryBeginOperation(AWorkItem* Item)
 
 void UWorkOperationComponent::ObserveAction(AWorkItem* Item, EWorkAction Action)
 {
-    if (Action != RequiredAction || !Item)
+    if (bUseExplicitResults || Action != RequiredAction || !Item)
     {
         return;
     }
@@ -63,6 +63,32 @@ void UWorkOperationComponent::ObserveAction(AWorkItem* Item, EWorkAction Action)
     {
         OnOperationChanged.Broadcast(this);
     }
+}
+
+bool UWorkOperationComponent::AdvanceProgress(int32 Amount)
+{
+    if (!bUseExplicitResults || Amount <= 0)
+    {
+        return false;
+    }
+    if (State == EWorkOperationState::Ready)
+    {
+        TryBeginOperation();
+    }
+    if (State != EWorkOperationState::InProgress)
+    {
+        return false;
+    }
+    CurrentCount = FMath::Min(CurrentCount + Amount, RequiredCount);
+    if (CurrentCount >= RequiredCount)
+    {
+        CompleteOperation();
+    }
+    else
+    {
+        OnOperationChanged.Broadcast(this);
+    }
+    return true;
 }
 
 void UWorkOperationComponent::CancelOperation()

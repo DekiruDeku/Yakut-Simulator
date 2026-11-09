@@ -10,7 +10,7 @@ class UWorkOperationComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FWorkOperationChanged, UWorkOperationComponent*, Operation);
 
-UCLASS(ClassGroup=(Scenario), meta=(BlueprintSpawnableComponent))
+UCLASS(Blueprintable, ClassGroup=(Scenario), meta=(BlueprintSpawnableComponent))
 class YAKUTSIMULATOR_API UWorkOperationComponent : public UActorComponent
 {
     GENERATED_BODY()
@@ -25,6 +25,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Operation", meta=(ClampMin="1"))
     int32 RequiredCount = 1;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Operation")
+    bool bUseExplicitResults = false;
+
     UPROPERTY(BlueprintReadOnly, Category="Operation")
     int32 CurrentCount = 0;
 
@@ -38,7 +41,10 @@ public:
     void SetAvailable(bool bAvailable);
 
     UFUNCTION(BlueprintCallable, Category="Operation")
-    virtual bool TryBeginOperation(AWorkItem* Item);
+    virtual bool TryBeginOperation(AWorkItem* Item = nullptr);
+
+    UFUNCTION(BlueprintCallable, Category="Operation")
+    bool AdvanceProgress(int32 Amount = 1);
 
     UFUNCTION(BlueprintCallable, Category="Operation")
     void ObserveAction(AWorkItem* Item, EWorkAction Action);

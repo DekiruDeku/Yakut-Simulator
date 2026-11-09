@@ -1,0 +1,68 @@
+newmtl HullBlue
+Kd 0.025 0.12 0.16
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl DeckDark
+Kd 0.075 0.1 0.105
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl Ivory
+Kd 0.72 0.73 0.66
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl SafetyOrange
+Kd 0.65 0.19 0.035
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl Steel
+Kd 0.38 0.43 0.44
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl DarkSteel
+Kd 0.06 0.075 0.08
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl Rubber
+Kd 0.018 0.025 0.027
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl WindowGlass
+Kd 0.025 0.07 0.09
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl Rope
+Kd 0.36 0.31 0.2
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl NetGreen
+Kd 0.08 0.22 0.15
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl FloatYellow
+Kd 0.87 0.61 0.1
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl CrateBlue
+Kd 0.035 0.24 0.32
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl FishSilver
+Kd 0.5 0.62 0.61
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl FishBack
+Kd 0.12 0.24 0.22
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl FishBlue
+Kd 0.22 0.36 0.42
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl Eye
+Kd 0.007 0.009 0.01
+Ks 0.3 0.3 0.3
+Ns 64
+newmtl Stone
+Kd 0.12 0.14 0.13
+Ks 0.3 0.3 0.3
+Ns 64
