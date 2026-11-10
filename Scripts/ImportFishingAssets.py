@@ -7,7 +7,7 @@ SourceDirectory = ProjectDirectory / 'SourceAssets/Fishing/Models'
 Metadata = json.loads((SourceDirectory / 'FishingAssets.json').read_text(encoding='utf-8'))
 AssetTools = unreal.AssetToolsHelpers.get_asset_tools()
 MeshEditor = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-RootPath = '/Game/Fishing'
+RootPath = '/Game/Minigames/Fishing/Trawling'
 
 
 def CreatePaint(Name, Color):

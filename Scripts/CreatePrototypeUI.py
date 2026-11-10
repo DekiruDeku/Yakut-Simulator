@@ -3,7 +3,7 @@ import unreal
 from editor_toolset.toolsets.blueprint import BlueprintTools
 from editor_toolset.toolsets.object import ObjectTools
 
-UIFolder = '/Game/Prototype/UI'
+UIFolder = '/Game/Base/UI'
 
 
 def CallUMG(ToolName, Arguments):
@@ -62,59 +62,6 @@ def BindButton(Blueprint, Name):
         CallUMG('BindToEventProperty', {'widgetBlueprint': ObjectArgument(Blueprint), 'eventName': 'OnClicked', 'propertyName': Name, 'propertyClass': ObjectArgument(unreal.Button.static_class())})
 
 
-def BuildDesigners():
-    Entry = GetBlueprint('WBP_MapEntry')
-    Button = AddWidget(Entry, 'SelectMapButton', unreal.Button, Variable=True)
-    Button.set_background_color(unreal.LinearColor(0.14, 0.32, 0.46, 1))
-    Label = AddText(Entry, 'MapName', Button)
-    Label.set_editor_property('margin', unreal.Margin(18, 16, 18, 16))
-    if 'MapEntry' not in BlueprintTools.list_variables(Entry):
-        BlueprintTools.add_struct_variable(Entry, 'MapEntry', unreal.load_object(None, '/Script/YakutSimulator.ScenarioMapEntry'))
-    BlueprintTools.compile_blueprint(Entry)
-    BindButton(Entry, 'SelectMapButton')
-
-    Menu = GetBlueprint('WBP_MainMenu')
-    Canvas = AddWidget(Menu, 'MenuCanvas', unreal.CanvasPanel)
-    Background = AddWidget(Menu, 'Background', unreal.Border, Canvas)
-    Background.set_brush_color(unreal.LinearColor(0.018, 0.028, 0.045, 0.97))
-    Background.slot.set_anchors(unreal.Anchors(unreal.Vector2D(0, 0), unreal.Vector2D(1, 1)))
-    Background.slot.set_offsets(unreal.Margin(0))
-    Card = AddWidget(Menu, 'Card', unreal.SizeBox, Canvas)
-    Card.set_width_override(560)
-    Card.slot.set_anchors(unreal.Anchors(unreal.Vector2D(0.5, 0.5), unreal.Vector2D(0.5, 0.5)))
-    Card.slot.set_alignment(unreal.Vector2D(0.5, 0.5))
-    Card.slot.set_auto_size(True)
-    Surface = AddWidget(Menu, 'Surface', unreal.Border, Card)
-    Surface.set_brush_color(unreal.LinearColor(0.045, 0.065, 0.095, 1))
-    Surface.set_padding(unreal.Margin(32))
-    Content = AddWidget(Menu, 'MenuContent', unreal.VerticalBox, Surface)
-    Title = AddText(Menu, 'Title', Content, 'Выбор карты', 30)
-    Title.slot.set_padding(unreal.Margin(0, 0, 0, 12))
-    Description = AddText(Menu, 'Description', Content, 'Выберите карту.')
-    Description.slot.set_padding(unreal.Margin(0, 0, 0, 24))
-    AddWidget(Menu, 'MapList', unreal.VerticalBox, Content, True)
-    Controls = AddWidget(Menu, 'ScenarioControls', unreal.VerticalBox, Content, True)
-    for Name, Text in [('ResumeButton', 'Продолжить'), ('MainMenuButton', 'Главное меню')]:
-        Button = AddWidget(Menu, Name, unreal.Button, Controls, True)
-        Label = AddText(Menu, Name + 'Label', Button, Text)
-        Label.set_editor_property('margin', unreal.Margin(18, 12, 18, 12))
-        Button.slot.set_padding(unreal.Margin(0, 8, 0, 12))
-    Error = AddText(Menu, 'ErrorMessage', Content)
-    Error.set_color_and_opacity(unreal.SlateColor(specified_color=unreal.LinearColor(1, 0.45, 0.3, 1)))
-    Error.slot.set_padding(unreal.Margin(0, 16, 0, 0))
-    BlueprintTools.compile_blueprint(Menu)
-    for Name in ['ResumeButton', 'MainMenuButton']:
-        BindButton(Menu, Name)
-
-    for Blueprint in [Entry, Menu]:
-        BlueprintTools.compile_blueprint(Blueprint)
-        unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
-    return Entry, Menu
-
-
-
-
-
 
 def DiscoverNodes(Graph, NodeTypes):
     for NodeType in NodeTypes:
@@ -151,81 +98,3 @@ def BindRefreshFunction(Graph, BindingNodeType, FunctionName):
     Event = BlueprintTools.create_node(Graph, 'EventDispatchers|CreateEvent', unreal.IntPoint(320, -180))
     BlueprintTools.connect_pins(FindPin(Event, 'OutputDelegate', unreal.EdGraphPinDirection.EGPD_OUTPUT), FindPin(Binding, 'Delegate', unreal.EdGraphPinDirection.EGPD_INPUT))
     BlueprintTools.set_create_event_function(Event, FunctionName)
-
-
-def BuildEntryGraph(Blueprint):
-    Graph = BlueprintTools.get_graph(Blueprint, 'EventGraph')
-    DiscoverNodes(Graph, ['Variables|Default|GetMapEntry', 'Variables|WBP_MapEntry|GetMapName', 'Widget|SetText(Text)', 'Utilities|Struct|BreakScenarioMapEntry', 'Widget|GetOwningPlayer', 'Utilities|Casting|CastToPrototypePlayerController', 'Menu|OpenScenarioMap'])
-    WriteGraph(Graph, '''
-(event UserInterface|EventConstruct
-    (bind (DisplayName Destination) (Utilities|Struct|BreakScenarioMapEntry :ScenarioMapEntry (Variables|Default|GetMapEntry)))
-    (Widget|SetText(Text) :self (Variables|WBP_MapEntry|GetMapName) :InText DisplayName))
-(event OnClicked(SelectMapButton)
-    (bind Player (Utilities|Casting|CastToPrototypePlayerController :Object (Widget|GetOwningPlayer))
-        (:then
-            (bind (DisplayName Destination) (Utilities|Struct|BreakScenarioMapEntry :ScenarioMapEntry (Variables|Default|GetMapEntry)))
-            (Menu|OpenScenarioMap :self Player :Map Destination))
-        (:CastFailed)))
-''')
-    BlueprintTools.compile_blueprint(Blueprint)
-
-
-def BuildMenuGraph(Blueprint):
-    if 'Player' not in BlueprintTools.list_variables(Blueprint):
-        BlueprintTools.add_object_variable(Blueprint, 'Player', unreal.PrototypePlayerController.static_class())
-    RefreshGraph = BlueprintTools.add_function_graph(Blueprint, 'RefreshMenuError')
-    DiscoverNodes(RefreshGraph, ['Variables|Default|GetPlayer', 'Variables|WBP_MainMenu|GetErrorMessage', 'Class|PrototypePlayerController|GetMenuError', 'Widget|SetText(Text)'])
-    WriteGraph(RefreshGraph, '''
-(fn RefreshMenuError ()
-    (Widget|SetText(Text) :self (Variables|WBP_MainMenu|GetErrorMessage)
-        :InText (Class|PrototypePlayerController|GetMenuError :self (Variables|Default|GetPlayer))))
-''')
-    BlueprintTools.compile_blueprint(Blueprint)
-    Graph = BlueprintTools.get_graph(Blueprint, 'EventGraph')
-    DiscoverNodes(Graph, ['Widget|GetOwningPlayer', 'Utilities|Casting|CastToPrototypePlayerController', 'Variables|Default|SetPlayer', 'Variables|Default|GetPlayer', 'Menu|BindEventtoOnMenuErrorChanged', 'Menu|IsMainMenuMap', 'Widget|SetVisibility', 'Variables|WBP_MainMenu|GetScenarioControls', 'Game|GetGameMode', 'Utilities|Casting|CastToPrototypeGameMode', 'Class|PrototypeGameMode|GetScenarioMaps', 'UserInterface|CreateWidget', 'Class|WBPMapEntry|SetMapEntry', 'Panel|AddChildtoVerticalBox', 'Variables|WBP_MainMenu|GetMapList', 'Menu|ToggleMenu', 'Menu|ReturntoMainMenu', 'CallFunction|RefreshMenuError', 'Layout|VerticalBoxSlot|SetPadding'])
-    WriteGraph(Graph, '''
-(event UserInterface|EventOnInitialized
-    (bind Controller (Utilities|Casting|CastToPrototypePlayerController :Object (Widget|GetOwningPlayer))
-        (:then
-            (Variables|Default|SetPlayer :Player Controller)
-            (Menu|BindEventtoOnMenuErrorChanged :self Controller)
-            (CallFunction|RefreshMenuError)
-            (if (Menu|IsMainMenuMap :self Controller)
-                (Widget|SetVisibility :self (Variables|WBP_MainMenu|GetScenarioControls) :InVisibility "Collapsed")
-                (else
-                    (Widget|SetVisibility :self (Variables|WBP_MainMenu|GetScenarioControls) :InVisibility "Visible")))
-            (bind GameMode (Utilities|Casting|CastToPrototypeGameMode :Object (Game|GetGameMode))
-                (:then
-                    (for MapEntry (Class|PrototypeGameMode|GetScenarioMaps :self GameMode)
-                        (bind EntryWidget (UserInterface|CreateWidget :Class "/Game/Prototype/UI/WBP_MapEntry.WBP_MapEntry_C" :OwningPlayer Controller))
-                        (Class|WBPMapEntry|SetMapEntry :self EntryWidget :MapEntry MapEntry)
-                        (bind EntrySlot (Panel|AddChildtoVerticalBox :self (Variables|WBP_MainMenu|GetMapList) :Content EntryWidget))
-                        (Layout|VerticalBoxSlot|SetPadding :self EntrySlot :InPadding "(Left=0,Top=0,Right=0,Bottom=12)")))
-                (:CastFailed)))
-        (:CastFailed)))
-(event OnClicked(ResumeButton)
-    (Menu|ToggleMenu :self (Variables|Default|GetPlayer)))
-(event OnClicked(MainMenuButton)
-    (Menu|ReturntoMainMenu :self (Variables|Default|GetPlayer)))
-''')
-    BindRefreshFunction(Graph, 'Menu|BindEventtoOnMenuErrorChanged', 'RefreshMenuError')
-    BlueprintTools.compile_blueprint(Blueprint)
-
-
-def BuildPrototypeInterface():
-    EntryBlueprint, MainMenuBlueprint = BuildDesigners()
-    BuildEntryGraph(EntryBlueprint)
-    BuildMenuGraph(MainMenuBlueprint)
-    for Blueprint in [EntryBlueprint, MainMenuBlueprint]:
-        for Graph in BlueprintTools.list_graphs(Blueprint):
-            BlueprintTools.arrange_nodes(BlueprintTools.find_nodes(Graph))
-        unreal.EditorAssetLibrary.save_loaded_asset(Blueprint)
-    print('UMG graphs compiled and saved')
-
-
-if __name__ == '__main__':
-    BuildPrototypeInterface()
-
-
-
-

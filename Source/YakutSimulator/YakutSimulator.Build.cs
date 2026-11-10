@@ -10,7 +10,7 @@ public class YakutSimulator : ModuleRules
             "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
             "HeadMountedDisplay", "XRBase", "UMG", "Slate", "SlateCore"
         });
-        PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings", "Niagara" });
+        PrivateDependencyModuleNames.Add("EngineSettings");
         if (Target.bBuildEditor)
         {
             PrivateDependencyModuleNames.Add("UnrealEd");
