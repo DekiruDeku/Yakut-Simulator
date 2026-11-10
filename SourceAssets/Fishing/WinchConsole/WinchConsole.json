@@ -1,0 +1,164 @@
+{
+  "palette": {
+    "ConsolePaint": [
+      0.035,
+      0.12,
+      0.2,
+      1
+    ],
+    "PanelPrint": [
+      0.04,
+      0.15,
+      0.22,
+      1
+    ],
+    "Rubber": [
+      0.012,
+      0.017,
+      0.02,
+      1
+    ],
+    "Steel": [
+      0.32,
+      0.36,
+      0.38,
+      1
+    ],
+    "DarkSteel": [
+      0.038,
+      0.05,
+      0.055,
+      1
+    ],
+    "Yellow": [
+      0.8,
+      0.59,
+      0.045,
+      1
+    ],
+    "Red": [
+      0.55,
+      0.025,
+      0.014,
+      1
+    ],
+    "Green": [
+      0.035,
+      0.29,
+      0.12,
+      1
+    ],
+    "DialPrint": [
+      0.7,
+      0.65,
+      0.45,
+      1
+    ],
+    "Needle": [
+      0.65,
+      0.045,
+      0.018,
+      1
+    ],
+    "Glass": [
+      0.12,
+      0.2,
+      0.22,
+      1
+    ],
+    "Screen": [
+      0.006,
+      0.013,
+      0.014,
+      1
+    ]
+  },
+  "assets": {
+    "SM_WinchControlConsole": {
+      "collision": "cabinet",
+      "materials": [
+        "DarkSteel",
+        "ConsolePaint",
+        "Steel",
+        "Rubber",
+        "PanelPrint",
+        "Screen",
+        "DialPrint"
+      ],
+      "vertices": 4600
+    },
+    "SM_WinchJoystickMount": {
+      "collision": "box",
+      "materials": [
+        "DarkSteel",
+        "Rubber",
+        "Steel"
+      ],
+      "vertices": 1232
+    },
+    "SM_WinchJoystick": {
+      "collision": "convex",
+      "materials": [
+        "Steel",
+        "Rubber",
+        "Yellow"
+      ],
+      "vertices": 866
+    },
+    "SM_WinchRotaryMount": {
+      "collision": "box",
+      "materials": [
+        "DarkSteel",
+        "Steel"
+      ],
+      "vertices": 372
+    },
+    "SM_WinchRotaryKnob": {
+      "collision": "convex",
+      "materials": [
+        "Steel",
+        "Rubber",
+        "DarkSteel",
+        "Yellow"
+      ],
+      "vertices": 2256
+    },
+    "SM_WinchButtonMount": {
+      "collision": "box",
+      "materials": [
+        "Yellow",
+        "DarkSteel"
+      ],
+      "vertices": 576
+    },
+    "SM_WinchButtonStem": {
+      "collision": "convex",
+      "materials": [
+        "DarkSteel"
+      ],
+      "vertices": 192
+    },
+    "SM_WinchEmergencyCap": {
+      "collision": "none",
+      "materials": [
+        "Red"
+      ],
+      "vertices": 768
+    },
+    "SM_WinchConfirmCap": {
+      "collision": "none",
+      "materials": [
+        "Green"
+      ],
+      "vertices": 288
+    },
+    "SM_WinchGaugeNeedle": {
+      "collision": "none",
+      "materials": [
+        "Needle",
+        "DarkSteel"
+      ],
+      "vertices": 288
+    }
+  }
+}

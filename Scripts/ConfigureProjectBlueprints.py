@@ -8,7 +8,7 @@ from editor_toolset.toolsets.blueprint import BlueprintTools
 ProjectDirectory=pathlib.Path(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir())).resolve()
 BackupDirectory=ProjectDirectory/'Saved/Backups/BlueprintConfiguration'
 VerificationDirectory=ProjectDirectory/'Saved/Verification/BlueprintConfiguration'
-BaseClasses=['InteractionZoneComponent','WorkOperationComponent','WorkItem','ScenarioDirector','PlacementStation','VirtualRealityPawn','MainPlayerController','MainGameMode','MainGameInstance','MainHUD','PhysicalLever','WorkstationScenario']
+BaseClasses=['InteractionZoneComponent','WorkOperationComponent','WorkItem','ScenarioDirector','PlacementStation','VirtualRealityPawn','MainPlayerController','MainGameMode','MainGameInstance','MainHUD','MainSettingsSave','PhysicalLever','WorkstationScenario']
 FishingClasses=['VesselMovementComponent','FishSpeciesDefinition','TrawlerVessel','FishingWinch','FishItem','KnifeItem','FishingStation','FishSortingConveyor','FishProcessingBench']
 WorkstationClasses=['TrawlWinchScenario','FishSortingScenario','FishCuttingScenario','FishReceivingBin']
 FishingVariants=['FishSortingConveyor_Cod','FishSortingConveyor_Haddock']

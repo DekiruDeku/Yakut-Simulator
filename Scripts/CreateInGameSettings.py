@@ -109,7 +109,7 @@ def ConfigureWidget():
     if not Blueprint.get_graph(Widget, 'CloseRequested'):
         Blueprint.add_event_dispatcher(Widget, 'CloseRequested')
     Surface = unreal.find_object(None, Widget.get_path_name() + ':WidgetTree.Surface')
-    Surface.set_padding(unreal.Margin(32))
+    Surface.set_padding(unreal.Margin(32, 32, 32, 32))
     Content = UI.AddWidget(Widget, 'SettingsContent', unreal.VerticalBox, Surface)
     for Name, Text, Size in [('SettingsTitle', 'Настройки', 38), ('AudioTitle', 'Звук', 28), ('VolumeLabel', 'Общая громкость', 26)]:
         Label = UI.AddText(Widget, Name, Content, Text, Size)
@@ -129,20 +129,64 @@ def ConfigureWidget():
         Style.set_editor_property(Property, Brush)
     Slider.set_editor_property('widget_style', Style)
     Slider.slot.set_padding(unreal.Margin(0, 12, 0, 28))
+    Label = UI.AddText(Widget, 'HeightLabel', Content, 'Поправка высоты камеры, см', 26)
+    Label.slot.set_padding(unreal.Margin(0, 0, 0, 12))
+    Height = UI.AddWidget(Widget, 'CameraHeightInput', unreal.SpinBox, Content, True)
+    Height.set_min_value(-100)
+    Height.set_max_value(100)
+    Height.set_min_slider_value(-100)
+    Height.set_max_slider_value(100)
+    Height.set_editor_property('delta', 1)
+    Height.set_editor_property('min_desired_width', 280)
+    from ConfigureCommonUI import TextStyle
+    Font = unreal.get_default_object(TextStyle('Section')).get_editor_property('font')
+    Height.set_editor_property('font', Font)
+    Height.slot.set_padding(unreal.Margin(0, 0, 0, 16))
+    Status = UI.AddText(Widget, 'HeightSaveStatus', Content, 'Значение сохраняется после завершения ввода.', 21)
+    Status.slot.set_padding(unreal.Margin(0, 0, 0, 20))
+    FloorTitle = UI.AddText(Widget, 'LocalFloorTitle', Content, 'Высота шлема над LocalFloor, см', 21)
+    FloorTitle.slot.set_padding(unreal.Margin(0, 0, 0, 6))
+    Floor = UI.AddText(Widget, 'LocalFloorReadout', Content, 'Нет данных трекинга.', 21)
+    Floor.slot.set_padding(unreal.Margin(0, 0, 0, 20))
     Note = UI.AddText(Widget, 'SettingsHint', Content, 'Удерживайте X и Y 0,6 секунды, чтобы открыть или закрыть настройки.', 21)
+    Note.set_editor_property('wrap_text_at', 640)
     Note.slot.set_padding(unreal.Margin(0, 0, 0, 24))
     Button = UI.AddWidget(Widget, 'CloseSettingsButton', unreal.Button, Content, True)
     Label = UI.AddText(Widget, 'CloseSettingsText', Button, 'Закрыть', 26)
-    Label.set_editor_property('margin', unreal.Margin(16, 12, 16, 12))
+    for Index, Name in enumerate(['SettingsTitle', 'AudioTitle', 'VolumeLabel', 'MasterVolumeSlider', 'HeightLabel', 'CameraHeightInput', 'HeightSaveStatus', 'LocalFloorTitle', 'LocalFloorReadout', 'SettingsHint', 'CloseSettingsButton']):
+        Child = unreal.find_object(None, Widget.get_path_name() + ':WidgetTree.' + Name)
+        Padding = Child.slot.get_editor_property('padding')
+        UI.CallUMG('MoveWidget', {'widgetBlueprint': UI.ObjectArgument(Widget), 'widget': UI.ObjectArgument(Child), 'newParent': UI.ObjectArgument(Content), 'childIndex': Index})
+        Properties = json.loads(ObjectTools.list_properties(Child.slot))
+        ObjectTools.get_properties(Child.slot, list(Properties))
+        Child.slot.set_padding(Padding)
     Blueprint.compile_blueprint(Widget)
     UI.BindButton(Widget, 'CloseSettingsButton')
     Graph = Blueprint.get_graph(Widget, 'EventGraph')
     if 'OnValueChanged(MasterVolumeSlider)' not in Blueprint.read_graph_dsl(Graph):
         UI.CallUMG('BindToEventProperty', {'widgetBlueprint': UI.ObjectArgument(Widget), 'eventName': 'OnValueChanged', 'propertyName': 'MasterVolumeSlider', 'propertyClass': UI.ObjectArgument(unreal.Slider.static_class())})
+    for Event in ['OnValueCommitted', 'OnEndSliderMovement']:
+        if Event + '(CameraHeightInput)' not in Blueprint.read_graph_dsl(Graph):
+            UI.CallUMG('BindToEventProperty', {'widgetBlueprint': UI.ObjectArgument(Widget), 'eventName': Event, 'propertyName': 'CameraHeightInput', 'propertyClass': UI.ObjectArgument(unreal.SpinBox.static_class())})
     Refresh = Function(Widget, 'ApplyVolume', [('Value', 'float')])
     Write(Refresh, f'''(fn ApplyVolume (Value)
         (Class|MainGameInstance|SetMasterVolume :self (Variables|Default|GetSettingsState) :MasterVolume Value)
         (Audio|SetSoundMixClassOverride :InSoundMixModifier "{MixPath}" :InSoundClass "{MasterPath}" :Volume Value :Pitch 1 :FadeInTime 0.05 :bApplyToChildren true))''')
+    HeightGraph = Function(Widget, 'ApplyCameraHeightOffset', [('Value', 'float')])
+    Write(HeightGraph, '''(fn ApplyCameraHeightOffset (Value)
+        (bind Saved (Settings|SetCameraHeightOffset :self (Variables|Default|GetSettingsState) :OffsetCentimeters Value))
+        (if Saved
+            (Widget|SetText(Text) :self (Variables|WBP_Settings|GetHeightSaveStatus) :InText "Поправка сохранена.")
+            (else (Widget|SetText(Text) :self (Variables|WBP_Settings|GetHeightSaveStatus) :InText "Не удалось сохранить поправку. Повторите ввод."))))''')
+    FloorGraph = Function(Widget, 'RefreshLocalFloorHeight')
+    Write(FloorGraph, '''(fn RefreshLocalFloorHeight ()
+        (bind Player (Utilities|Casting|CastToVirtualRealityPawn :Object (Game|GetPlayerPawn :PlayerIndex 0))
+            (:then
+                (if (Class|VirtualRealityPawn|GetHasFloorTracking :self Player)
+                    (Widget|SetText(Text) :self (Variables|WBP_Settings|GetLocalFloorReadout)
+                        :InText (Utilities|Text|ToText(Float) :Value (Class|VirtualRealityPawn|GetLocalFloorHeight :self Player) :MaximumFractionalDigits 1))
+                    (else (Widget|SetText(Text) :self (Variables|WBP_Settings|GetLocalFloorReadout) :InText "Нет данных трекинга."))))
+            (:CastFailed (Widget|SetText(Text) :self (Variables|WBP_Settings|GetLocalFloorReadout) :InText "Нет данных трекинга."))))''')
     Blueprint.compile_blueprint(Widget)
     for Node in list(Blueprint.find_nodes(Graph)):
         if not isinstance(Node, unreal.K2Node_ComponentBoundEvent):
@@ -150,11 +194,22 @@ def ConfigureWidget():
     Write(Graph, '''
     (event UserInterface|EventConstruct
         (Class|Slider|SetValue :self (Variables|WBP_Settings|GetMasterVolumeSlider) :Value (Class|MainGameInstance|GetMasterVolume :self (Variables|Default|GetSettingsState)))
-        (CallFunction|ApplyVolume :Value (Class|MainGameInstance|GetMasterVolume :self (Variables|Default|GetSettingsState))))
+        (Class|SpinBox|SetValue :self (Variables|WBP_Settings|GetCameraHeightInput) :Value (Class|MainSettingsSave|GetCameraHeightOffset :self (Class|MainGameInstance|GetSettingsSave :self (Variables|Default|GetSettingsState))))
+        (CallFunction|ApplyVolume :Value (Class|MainGameInstance|GetMasterVolume :self (Variables|Default|GetSettingsState)))
+        (CallFunction|RefreshLocalFloorHeight)
+        (Utilities|Time|SetTimerbyFunctionName :Object self :FunctionName "RefreshLocalFloorHeight" :Time 0.25 :bLooping true))
+    (event UserInterface|EventDestruct
+        (Utilities|Time|ClearTimerbyFunctionName :Object self :FunctionName "RefreshLocalFloorHeight"))
     (event OnValueChanged(MasterVolumeSlider) (Value)
         (CallFunction|ApplyVolume :Value Value))
     (event OnClicked(CloseSettingsButton)
-        (Default|CallCloseRequested))''')
+        (Default|CallCloseRequested))
+    (event OnValueCommitted(CameraHeightInput) (InValue CommitMethod)
+        (CallFunction|ApplyCameraHeightOffset :Value InValue))
+    (event OnEndSliderMovement(CameraHeightInput) (InValue)
+        (CallFunction|ApplyCameraHeightOffset :Value InValue))''')
+    from ConfigureCommonUI import ConfigureInputText
+    ConfigureInputText()
     Save(Widget)
     return Widget
 
@@ -242,11 +297,15 @@ def ConfigureHud(Widget):
     for Hand in ['Left', 'Right']:
         InputEvent(Graph, 'IA_Use' + Hand, ReleasedFunction='Release' + Hand + 'Pointer', ValueFunction='Process' + Hand + 'Pointer')
     Blueprint.arrange_nodes(Blueprint.find_nodes(Graph))
+    Defaults = unreal.get_default_object(Hud.generated_class())
+    Defaults.get_editor_property('SettingsDisplay').set_draw_size(unreal.Vector2D(720, 900))
+    Defaults.get_editor_property('SettingsDisplay').set_relative_scale3d(unreal.Vector(.1, .1, .1))
     Save(Hud)
     return Hud
 
 
 def CreateInGameSettings():
+    ConfigureSaveObject()
     ConfigureInput()
     Mix = unreal.load_asset(MixPath)
     if not Mix:
@@ -271,6 +330,17 @@ def CreateInGameSettings():
     for Asset in [Hud, Widget]:
         unreal.EditorAssetLibrary.save_loaded_asset(Asset, False)
     print('In-game settings saved; Blueprint compilation passed; no gameplay sessions were started')
+
+
+def ConfigureSaveObject():
+    SaveObject = unreal.load_asset('/Game/Base/Blueprints/BP_MainSettingsSave')
+    if not SaveObject:
+        SaveObject = Blueprint.create('/Game/Base/Blueprints', 'BP_MainSettingsSave', unreal.MainSettingsSave.static_class())
+    Save(SaveObject)
+    GameInstance = unreal.load_asset('/Game/Base/Blueprints/BP_MainGameInstance')
+    Backup(GameInstance)
+    unreal.get_default_object(GameInstance.generated_class()).set_editor_property('SettingsSaveClass', SaveObject.generated_class())
+    Save(GameInstance)
 
 
 if __name__ == '__main__':

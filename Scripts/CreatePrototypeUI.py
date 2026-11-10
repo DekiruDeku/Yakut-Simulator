@@ -27,13 +27,23 @@ def GetBlueprint(Name, Folder=UIFolder):
 
 
 def AddWidget(Blueprint, Name, WidgetClass, Parent=None, Variable=False):
+    if WidgetClass == unreal.Button:
+        WidgetClass = unreal.load_asset(UIFolder + '/WBP_MainButton').generated_class()
+    elif WidgetClass == unreal.TextBlock:
+        WidgetClass = unreal.CommonTextBlock
+    Class = WidgetClass
+    if not isinstance(Class, unreal.Class):
+        Class = WidgetClass.static_class()
     WidgetPath = Blueprint.get_path_name() + ':WidgetTree.' + Name
     Widget = unreal.find_object(None, WidgetPath)
     if not Widget:
         ParentArgument = None
         if Parent:
             ParentArgument = ObjectArgument(Parent)
-        Result = CallUMG('AddWidget', {'widgetBlueprint': ObjectArgument(Blueprint), 'widgetClass': ObjectArgument(WidgetClass.static_class()), 'widgetDisplayName': Name, 'parentWidget': ParentArgument, 'childIndex': -1})
+        if isinstance(Parent, unreal.CommonButtonBase):
+            Result = CallUMG('SetNamedSlotContent', {'widgetBlueprint': ObjectArgument(Blueprint), 'hostWidget': ParentArgument, 'slotName': 'ButtonContent', 'widgetClass': ObjectArgument(Class), 'widgetName': Name})
+        else:
+            Result = CallUMG('AddWidget', {'widgetBlueprint': ObjectArgument(Blueprint), 'widgetClass': ObjectArgument(Class), 'widgetDisplayName': Name, 'parentWidget': ParentArgument, 'childIndex': -1})
         Widget = unreal.find_object(None, Result['widget']['refPath'])
     WidgetProperties = json.loads(ObjectTools.list_properties(Widget))
     ObjectTools.get_properties(Widget, list(WidgetProperties))
@@ -47,19 +57,19 @@ def AddWidget(Blueprint, Name, WidgetClass, Parent=None, Variable=False):
 
 
 def AddText(Blueprint, Name, Parent, Text='', Size=20):
+    from ConfigureCommonUI import ApplyTextStyle
     Widget = AddWidget(Blueprint, Name, unreal.TextBlock, Parent, True)
     Widget.set_text(Text)
-    Font = Widget.get_editor_property('font')
-    Font.set_editor_property('size', Size)
-    Widget.set_font(Font)
-    Widget.set_auto_wrap_text(True)
+    ApplyTextStyle(Blueprint, Widget, Size)
+    Widget.set_auto_wrap_text(not Name.endswith('Unit'))
     return Widget
 
 
 def BindButton(Blueprint, Name):
     Graph = BlueprintTools.get_graph(Blueprint, 'EventGraph')
     if 'OnClicked(' + Name + ')' not in BlueprintTools.read_graph_dsl(Graph):
-        CallUMG('BindToEventProperty', {'widgetBlueprint': ObjectArgument(Blueprint), 'eventName': 'OnClicked', 'propertyName': Name, 'propertyClass': ObjectArgument(unreal.Button.static_class())})
+        Widget = unreal.find_object(None, Blueprint.get_path_name() + ':WidgetTree.' + Name)
+        CallUMG('BindToEventProperty', {'widgetBlueprint': ObjectArgument(Blueprint), 'eventName': 'OnClicked', 'propertyName': Name, 'propertyClass': ObjectArgument(Widget.get_class())})
 
 
 

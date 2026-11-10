@@ -27,15 +27,12 @@ def CreateWorkstationConsole():
     Surface.set_brush_color(unreal.LinearColor(.014, .022, .028, 1))
     Surface.set_padding(unreal.Margin(22))
     Content = UI.AddWidget(Widget, 'Content', unreal.VerticalBox, Surface)
-    for Name, Size, Color in [('Title', 30, (.8, .88, .9, 1)), ('EquipmentReadout', 24, (.7, .83, .82, 1)), ('CommandText', 24, (.94, .82, .43, 1)), ('StatusText', 20, (.9, .9, .9, 1))]:
+    for Name, Size in [('Title', 30), ('EquipmentReadout', 24), ('CommandText', 24), ('StatusText', 20)]:
         Text = UI.AddText(Widget, Name, Content, '', Size)
-        Text.set_color_and_opacity(unreal.SlateColor(specified_color=unreal.LinearColor(*Color)))
         Text.slot.set_padding(unreal.Margin(0, 0, 0, 12))
     for Name, Title in [('ConfirmButton', 'Подтвердить команду'), ('RestartButton', 'Начать новый цикл')]:
         Button = UI.AddWidget(Widget, Name, unreal.Button, Content, True)
-        Button.set_background_color(unreal.LinearColor(.05, .12, .16, 1))
         Label = UI.AddText(Widget, Name + 'Text', Button, Title, 22)
-        Label.set_editor_property('margin', unreal.Margin(12, 10, 12, 10))
         Button.slot.set_padding(unreal.Margin(0, 6, 0, 0))
     BlueprintTools.compile_blueprint(Widget)
     for Name in ['ConfirmButton', 'RestartButton']:
@@ -70,6 +67,8 @@ def CreateWorkstationConsole():
     BlueprintTools.compile_blueprint(Widget)
     unreal.EditorAssetLibrary.save_loaded_asset(Widget, False)
     for Name in ['WorkstationScenario', 'TrawlWinchScenario', 'FishSortingScenario', 'FishCuttingScenario']:
+        if Name == 'TrawlWinchScenario':
+            continue
         Folder = BlueprintFolder
         if Name == 'WorkstationScenario':
             Folder = '/Game/Base/Blueprints'
@@ -89,6 +88,8 @@ def CreateWorkstationConsole():
         BlueprintTools.compile_blueprint(Blueprint)
         BlueprintTools.arrange_nodes(BlueprintTools.find_nodes(Graph))
         unreal.EditorAssetLibrary.save_loaded_asset(Blueprint, False)
+    from ConfigureWinchConsole import CreateReadout, ConfigureScenario
+    ConfigureScenario(CreateReadout())
     print('Workstation console UMG and explicit owner bindings saved')
 
 

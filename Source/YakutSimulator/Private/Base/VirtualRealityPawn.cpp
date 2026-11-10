@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetInteractionComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -16,38 +17,41 @@
 #include "MotionControllerComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Base/WorkItem.h"
+#include "Base/MainGameInstance.h"
+#include "Base/MainSettingsSave.h"
 
 AVirtualRealityPawn::AVirtualRealityPawn()
 {
     PrimaryActorTick.bCanEverTick = true;
     TrackingOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("TrackingOrigin"));
     SetRootComponent(TrackingOrigin);
+    ViewOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("ViewOrigin"));
+    ViewOrigin->SetupAttachment(TrackingOrigin);
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
-    Camera->SetupAttachment(TrackingOrigin);
+    Camera->SetupAttachment(ViewOrigin);
     LeftHand = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("LeftHand"));
-    LeftHand->SetupAttachment(TrackingOrigin);
+    LeftHand->SetupAttachment(ViewOrigin);
     LeftHand->SetTrackingMotionSource(TEXT("LeftGrip"));
     RightHand = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("RightHand"));
-    RightHand->SetupAttachment(TrackingOrigin);
+    RightHand->SetupAttachment(ViewOrigin);
     RightHand->SetTrackingMotionSource(TEXT("RightGrip"));
     LeftAim = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("LeftAim"));
-    LeftAim->SetupAttachment(TrackingOrigin);
+    LeftAim->SetupAttachment(ViewOrigin);
     LeftAim->SetTrackingMotionSource(TEXT("LeftAim"));
     RightAim = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("RightAim"));
-    RightAim->SetupAttachment(TrackingOrigin);
+    RightAim->SetupAttachment(ViewOrigin);
     RightAim->SetTrackingMotionSource(TEXT("RightAim"));
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> HandShape(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-    UStaticMeshComponent* LeftVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftHandVisual"));
-    LeftVisual->SetupAttachment(LeftHand);
-    LeftVisual->SetStaticMesh(HandShape.Object);
-    LeftVisual->SetRelativeScale3D(FVector(0.065));
-    LeftVisual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    UStaticMeshComponent* RightVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightHandVisual"));
-    RightVisual->SetupAttachment(RightHand);
-    RightVisual->SetStaticMesh(HandShape.Object);
-    RightVisual->SetRelativeScale3D(FVector(0.065));
-    RightVisual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    LeftHandMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LeftHandMesh"));
+    LeftHandMesh->SetupAttachment(LeftHand);
+    LeftHandMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    LeftHandMesh->SetGenerateOverlapEvents(false);
+    LeftHandMesh->ComponentTags.Add(TEXT("LeftHand"));
+    RightHandMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("RightHandMesh"));
+    RightHandMesh->SetupAttachment(RightHand);
+    RightHandMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    RightHandMesh->SetGenerateOverlapEvents(false);
+    RightHandMesh->ComponentTags.Add(TEXT("RightHand"));
 
     LeftPointer = CreateDefaultSubobject<UWidgetInteractionComponent>(TEXT("LeftPointer"));
     LeftPointer->SetupAttachment(LeftAim);
@@ -86,6 +90,13 @@ void AVirtualRealityPawn::BeginPlay()
     Super::BeginPlay();
     PrimaryActorTick.AddPrerequisite(LeftHand, LeftHand->PrimaryComponentTick);
     PrimaryActorTick.AddPrerequisite(RightHand, RightHand->PrimaryComponentTick);
+    if (UMainGameInstance* Settings = GetGameInstance<UMainGameInstance>())
+    {
+        if (Settings->SettingsSave)
+        {
+            SetCameraHeightOffset(Settings->SettingsSave->CameraHeightOffset);
+        }
+    }
     if (IsVirtualRealityActive())
     {
         UHeadMountedDisplayFunctionLibrary::SetTrackingOrigin(EHMDTrackingOrigin::LocalFloor);
@@ -101,6 +112,14 @@ void AVirtualRealityPawn::BeginPlay()
 void AVirtualRealityPawn::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    bHasFloorTracking = IsVirtualRealityActive() && UHeadMountedDisplayFunctionLibrary::HasValidTrackingPosition();
+    if (bHasFloorTracking)
+    {
+        FRotator TrackingRotation;
+        FVector TrackingPosition;
+        UHeadMountedDisplayFunctionLibrary::GetOrientationAndPosition(TrackingRotation, TrackingPosition);
+        LocalFloorHeight = TrackingPosition.Z;
+    }
     if (bLocomotionEnabled)
     {
         UpdateMovementBase();
@@ -115,6 +134,8 @@ void AVirtualRealityPawn::Tick(float DeltaSeconds)
     }
     if (!IsVirtualRealityActive())
     {
+        LeftHandMesh->SetVisibility(true);
+        RightHandMesh->SetVisibility(true);
         if (bLocomotionEnabled && !DesktopMovement.IsNearlyZero())
         {
             const FVector Movement = GetActorForwardVector() * DesktopMovement.Y + GetActorRightVector() * DesktopMovement.X;
@@ -137,6 +158,8 @@ void AVirtualRealityPawn::Tick(float DeltaSeconds)
     UpdateMotion(RightHand, RightMotion, DeltaSeconds);
     if (IsVirtualRealityActive())
     {
+        LeftHandMesh->SetVisibility(LeftHand->IsTracked());
+        RightHandMesh->SetVisibility(RightHand->IsTracked());
         if (!LeftHand->IsTracked() && LeftItem)
         {
             LeftItem->Release(FVector::ZeroVector, FVector::ZeroVector);
@@ -154,6 +177,15 @@ void AVirtualRealityPawn::Tick(float DeltaSeconds)
     {
         UpdateTeleport();
     }
+}
+
+void AVirtualRealityPawn::SetCameraHeightOffset(float OffsetCentimeters)
+{
+    if (!FMath::IsFinite(OffsetCentimeters))
+    {
+        return;
+    }
+    ViewOrigin->SetRelativeLocation(FVector(0, 0, FMath::Clamp(OffsetCentimeters, -100.0f, 100.0f)));
 }
 
 void AVirtualRealityPawn::UpdateMotion(USceneComponent* Hand, FHandMotionState& Motion, float DeltaSeconds)
@@ -365,6 +397,14 @@ void AVirtualRealityPawn::UpdatePointer(UWidgetInteractionComponent* Pointer, US
 
 void AVirtualRealityPawn::ProcessGrip(bool bLeftHand, float Value)
 {
+    if (bLeftHand)
+    {
+        LeftGripAmount = FMath::Clamp(Value, 0.0f, 1.0f);
+    }
+    else
+    {
+        RightGripAmount = FMath::Clamp(Value, 0.0f, 1.0f);
+    }
     bool* Pressed = &bRightGripPressed;
     if (bLeftHand)
     {
@@ -384,6 +424,14 @@ void AVirtualRealityPawn::ProcessGrip(bool bLeftHand, float Value)
 
 void AVirtualRealityPawn::ProcessUse(bool bLeftHand, float Value)
 {
+    if (bLeftHand)
+    {
+        LeftTriggerAmount = FMath::Clamp(Value, 0.0f, 1.0f);
+    }
+    else
+    {
+        RightTriggerAmount = FMath::Clamp(Value, 0.0f, 1.0f);
+    }
     bool* Pressed = &bRightUsePressed;
     if (bLeftHand)
     {

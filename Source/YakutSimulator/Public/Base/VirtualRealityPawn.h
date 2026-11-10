@@ -11,6 +11,7 @@ class UInputAction;
 class UInputMappingContext;
 class UMotionControllerComponent;
 class UPrimitiveComponent;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UWidgetInteractionComponent;
 
@@ -38,6 +39,15 @@ public:
     TObjectPtr<USceneComponent> TrackingOrigin;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tracking")
+    TObjectPtr<USceneComponent> ViewOrigin;
+
+    UPROPERTY(BlueprintReadOnly, Category="Settings")
+    float LocalFloorHeight = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category="Settings")
+    bool bHasFloorTracking = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tracking")
     TObjectPtr<UCameraComponent> Camera;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tracking")
@@ -45,6 +55,24 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tracking")
     TObjectPtr<UMotionControllerComponent> RightHand;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Hand Visuals")
+    TObjectPtr<USkeletalMeshComponent> LeftHandMesh;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Hand Visuals")
+    TObjectPtr<USkeletalMeshComponent> RightHandMesh;
+
+    UPROPERTY(BlueprintReadOnly, Category="Hand Animation")
+    float LeftGripAmount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Hand Animation")
+    float RightGripAmount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Hand Animation")
+    float LeftTriggerAmount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Hand Animation")
+    float RightTriggerAmount = 0;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Interaction")
     TObjectPtr<UWidgetInteractionComponent> LeftPointer;
@@ -111,6 +139,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Movement")
     void CancelTeleport();
+
+    UFUNCTION(BlueprintCallable, Category="Settings")
+    void SetCameraHeightOffset(float OffsetCentimeters);
 
 protected:
     virtual void BeginPlay() override;

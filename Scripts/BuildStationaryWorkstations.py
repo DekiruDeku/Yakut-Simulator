@@ -192,11 +192,12 @@ def Label(Name, Text, Position, Size=8, Rotation=(0, 180, 0), Color=(210, 220, 2
     return Actor
 
 
-def Control(Name, Title, Position, Color='FloatYellow'):
+def Control(Name, Title, Position, Color='FloatYellow', bCreateLabel=True):
     Actor = Spawn(Load('BP_WorkstationLever', BlueprintFolder).generated_class(), Name, Position, (0, 90, 0))
     Actor.set_editor_property('DisplayName', unreal.Text(Title))
     Actor.knob.set_material(0, Load('M_' + Color, '/Game/Minigames/Fishing/Trawling/Materials'))
-    Label(Name + '_Label', Title, (Position[0] - 7, Position[1], Position[2] - 2), 5)
+    if bCreateLabel:
+        Label(Name + '_Label', Title, (Position[0] - 7, Position[1], Position[2] - 2), 5)
     return Actor
 
 
@@ -219,6 +220,8 @@ def PrepareMap(Name):
 
 
 def BuildWinchScene():
+    if not unreal.EditorAssetLibrary.does_asset_exist('/Game/Minigames/Fishing/Workstations/WinchConsole/Meshes/SM_WinchControlConsole'):
+        raise RuntimeError('ImportWinchConsole must run before creating the winch workstation')
     World = PrepareMap('L_WinchStation')
     Shape('StationaryAftDeck', (100, 0, -15), (13, 9, .3), 'DeckDark')
     Shape('AftHull', (100, 0, -80), (13, 9, 1.1), 'HullBlue')
@@ -231,12 +234,12 @@ def BuildWinchScene():
         Shape('CableWarningStripe', (400, Side * 200, .5), (4, .12, .01), 'FloatYellow', Collision=False)
     Shape('WinchConsoleHousing', (70, 0, 90), (1, 1, 1), 'HullBlue', '/Game/Minigames/Fishing/Trawling/Meshes/SM_ControlConsole', (0, 90, 0))
     Scenario = Spawn(Load('BP_TrawlWinchScenario', BlueprintFolder).generated_class(), 'WinchWorkstation', (0, 0, 0))
-    PortControl = Control('PortDrumControl', 'ЛЕВЫЙ БАРАБАН', (65, -24, 102))
-    StarboardControl = Control('StarboardDrumControl', 'ПРАВЫЙ БАРАБАН', (65, 24, 102))
-    Scenario.set_editor_property('PortTensionControl', Control('PortTensionControl', 'НАТЯЖЕНИЕ Л', (36, -48, 102), 'CrateBlue'))
-    Scenario.set_editor_property('StarboardTensionControl', Control('StarboardTensionControl', 'НАТЯЖЕНИЕ П', (36, 48, 102), 'CrateBlue'))
-    Scenario.set_editor_property('EmergencyControl', Control('EmergencyStop', 'АВАРИЙНЫЙ СТОП', (20, 0, 102), 'SafetyOrange'))
-    Scenario.set_editor_property('CommandControl', Control('CommandConfirmation', 'ПОДТВЕРДИТЬ', (92, 0, 102), 'NetGreen'))
+    PortControl = Control('PortDrumControl', 'ЛЕВЫЙ БАРАБАН', (65, -24, 102), bCreateLabel=False)
+    StarboardControl = Control('StarboardDrumControl', 'ПРАВЫЙ БАРАБАН', (65, 24, 102), bCreateLabel=False)
+    Scenario.set_editor_property('PortTensionControl', Control('PortTensionControl', 'НАТЯЖЕНИЕ Л', (36, -48, 102), 'CrateBlue', bCreateLabel=False))
+    Scenario.set_editor_property('StarboardTensionControl', Control('StarboardTensionControl', 'НАТЯЖЕНИЕ П', (36, 48, 102), 'CrateBlue', bCreateLabel=False))
+    Scenario.set_editor_property('EmergencyControl', Control('EmergencyStop', 'АВАРИЙНЫЙ СТОП', (20, 0, 102), 'SafetyOrange', bCreateLabel=False))
+    Scenario.set_editor_property('CommandControl', Control('CommandConfirmation', 'ПОДТВЕРДИТЬ', (92, 0, 102), 'NetGreen', bCreateLabel=False))
     for Name, Position, ControlActor, Property in [('PortWinch', (420, -235, 0), PortControl, 'PortWinch'), ('StarboardWinch', (420, 235, 0), StarboardControl, 'StarboardWinch')]:
         Winch = Spawn(Load('BP_IndependentFishingWinch', BlueprintFolder).generated_class(), Name, Position)
         Winch.set_editor_property('ControlLever', ControlActor)
@@ -245,8 +248,6 @@ def BuildWinchScene():
     Scenario.console_display.set_relative_location(unreal.Vector(130, -105, 178), False, False)
     Scenario.console_display.set_relative_rotation(unreal.Rotator(yaw=155), False, False)
     Scenario.console_display.set_relative_scale3d(unreal.Vector(.055, .055, .055))
-    Label('PortWinchSign', 'ЛЕВЫЙ ВАЕР', (350, -235, 150), 14)
-    Label('StarboardWinchSign', 'ПРАВЫЙ ВАЕР', (350, 235, 150), 14)
     Sky = Shape('MaritimeSky', (0, 0, 0), (1000, 1000, 1000), 'MaritimeSky', '/Engine/EngineSky/SM_SkySphere', Collision=False)
     Sky.static_mesh_component.set_cast_shadow(False)
     Light = Spawn(unreal.DirectionalLight, 'DeckSun', (0, 0, 600), (-30, -50, 0))
@@ -259,7 +260,7 @@ def BuildWinchScene():
     Ocean.set_editor_property('WaterWaves', None)
     Zone = Spawn(unreal.WaterZone, 'WaterZone', (0, 0, -120))
     Zone.set_editor_property('ZoneExtent', unreal.Vector2D(80000, 80000))
-    Zone.water_mesh.set_editor_property('FarDistanceMaterial', unreal.load_asset('/Water/Materials/WaterSurface/LODs/Water_Material_Ocean_LOD'))
+    Zone.water_mesh.set_editor_property('FarDistanceMaterial', unreal.load_asset('/Water/Materials/WaterSurface/Water_FarMesh'))
     Zone.water_mesh.set_editor_property('FarDistanceMeshExtent', 1000000.0)
     Ocean.get_water_body_component().set_editor_property('bAffectsLandscape', False)
     Ocean.get_water_body_component().set_editor_property('OceanExtents', unreal.Vector2D(80000, 80000))
@@ -271,8 +272,12 @@ def BuildWinchScene():
     Spline.k2_synchronize_and_broadcast_data_change()
     Ocean.get_water_body_component().set_water_zone_override(Zone)
     Ocean.get_water_body_component().set_water_material(unreal.load_asset('/Water/Materials/WaterSurface/Water_Material_Ocean'))
+    from ConfigureWorkstationWater import ConfigureWorkstationWater
+    ConfigureWorkstationWater()
     Levels.save_current_level()
-    return World
+    from ConfigureWinchConsole import ConfigureWinchConsole
+    ConfigureWinchConsole()
+    return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 
 
 def BuildProcessingRoom(MapName):
