@@ -79,3 +79,9 @@ DerivedDataCache/*
 AGENTS.md
 __pycache__/
 *.blend1
+
+# Local workstation tools and settings
+.idea/
+*.DotSettings.user
+/LocalVR/
+/StartMetaXR.local.cmd
