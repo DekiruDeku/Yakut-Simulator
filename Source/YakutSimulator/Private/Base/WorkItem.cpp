@@ -84,14 +84,7 @@ void AWorkItem::Release(const FVector& LinearVelocity, const FVector& AngularVel
     {
         return;
     }
-    EndUse();
-    PhysicalGrip->ReleaseComponent();
-    if (IsValid(HoldingHand))
-    {
-        RemoveTickPrerequisiteActor(HoldingHand->GetOwner());
-    }
-    HoldingHand = nullptr;
-    bIsHeld = false;
+    ReleaseGrip();
     Body->SetSimulatePhysics(true);
     if (!bIsAnchored)
     {
@@ -128,6 +121,18 @@ void AWorkItem::Release(const FVector& LinearVelocity, const FVector& AngularVel
     {
         ClosestZone->TryAcceptItem(this);
     }
+}
+
+void AWorkItem::ReleaseGrip()
+{
+    EndUse();
+    PhysicalGrip->ReleaseComponent();
+    if (IsValid(HoldingHand))
+    {
+        RemoveTickPrerequisiteActor(HoldingHand->GetOwner());
+    }
+    HoldingHand = nullptr;
+    bIsHeld = false;
 }
 
 void AWorkItem::Tick(float DeltaSeconds)

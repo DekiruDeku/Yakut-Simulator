@@ -24,6 +24,9 @@ public:
     UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Workstation")
     TObjectPtr<APhysicalLever> CommandControl;
 
+    UPROPERTY(EditDefaultsOnly, AdvancedDisplay, BlueprintReadOnly, Category="Workstation", meta=(ClampMin="0.01", Units="s"))
+    float DisplayUpdateIntervalSeconds = 0.25f;
+
     UFUNCTION(BlueprintPure, Category="Workstation")
     virtual FText GetReadout() const;
 

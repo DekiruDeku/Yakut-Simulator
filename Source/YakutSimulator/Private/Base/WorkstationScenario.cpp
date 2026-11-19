@@ -29,7 +29,7 @@ void AWorkstationScenario::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     DisplayAccumulator += DeltaSeconds;
-    if (DisplayAccumulator >= 0.25f)
+    if (DisplayAccumulator >= DisplayUpdateIntervalSeconds)
     {
         DisplayAccumulator = 0;
         OnScenarioChanged.Broadcast();

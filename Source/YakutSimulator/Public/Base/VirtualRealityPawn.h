@@ -92,6 +92,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interaction")
     float GrabRadius = 30;
 
+    UPROPERTY(EditDefaultsOnly, AdvancedDisplay, BlueprintReadOnly, Category="Interaction", meta=(ClampMin="0.01", ClampMax="1"))
+    float GripPressThreshold = 0.65f;
+
+    UPROPERTY(EditDefaultsOnly, AdvancedDisplay, BlueprintReadOnly, Category="Interaction", meta=(ClampMin="0", ClampMax="1", ToolTip="Set below Grip Press Threshold to leave a gap between grabbing and releasing."))
+    float GripReleaseThreshold = 0.35f;
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
     TObjectPtr<UInputMappingContext> InteractionMapping;
 
@@ -128,8 +134,16 @@ public:
     UFUNCTION(BlueprintCallable, Category="Interaction")
     bool TryGrabItem(bool bLeftHand);
 
+    UFUNCTION(BlueprintPure, Category="Interaction")
+    bool IsHandBusy(bool bLeftHand) const;
+
+    UFUNCTION(BlueprintCallable, Category="Interaction")
+    void CancelHandInteraction(bool bLeftHand);
+
     UFUNCTION(BlueprintCallable, Category="Interaction")
     void ReleaseItem(bool bLeftHand);
+
+    void ForgetHeldItem(const AWorkItem* Item);
 
     UFUNCTION(BlueprintCallable, Category="Interaction")
     void SetItemUse(bool bLeftHand, bool bUse);
@@ -167,6 +181,15 @@ private:
 
     FHandMotionState LeftMotion;
     FHandMotionState RightMotion;
+
+    UPROPERTY(Transient)
+    TObjectPtr<AActor> LeftHandInteraction;
+
+    UPROPERTY(Transient)
+    TObjectPtr<AActor> RightHandInteraction;
+
+    bool TryBeginHandInteraction(bool bLeftHand);
+    void EndHandInteraction(bool bLeftHand, bool bCancelled);
     bool bLeftGripPressed = false;
     bool bRightGripPressed = false;
     bool bLeftUsePressed = false;

@@ -13,7 +13,7 @@ public class YakutSimulator : ModuleRules
         PrivateDependencyModuleNames.Add("EngineSettings");
         if (Target.bBuildEditor)
         {
-            PrivateDependencyModuleNames.Add("UnrealEd");
+            PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "PropertyEditor" });
         }
     }
 }

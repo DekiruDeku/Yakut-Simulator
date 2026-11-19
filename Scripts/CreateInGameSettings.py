@@ -257,13 +257,14 @@ def ConfigureHud(Widget):
             (bind Pawn (Utilities|Casting|CastToVirtualRealityPawn :Object (Pawn|GetControlledPawn :self (HUD|GetOwningPlayerController)))
                 (:then
                     (bind Pointer (Class|VirtualRealityPawn|Get{Hand}Pointer :self Pawn))
+                    (bind Busy (Interaction|IsHandBusy :self Pawn :bLeftHand {str(Hand == 'Left').lower()}))
+                    (if Busy
+                        (Interaction|ReleasePointerKey :self Pointer :Key "LeftMouseButton"))
                     (if (and (>= Value 0.65) (not (Variables|Default|Get{Hand}TriggerPressed)))
                         (Variables|Default|Set{Hand}TriggerPressed true)
-                        (Utilities|IsValid :InputObject (Class|VirtualRealityPawn|Get{Hand}Item :self Pawn)
-                            (:"Is Valid")
-                            (:"Is Not Valid"
-                                (if (Interaction|IsOverHitTestVisibleWidget :self Pointer)
-                                    (Interaction|PressPointerKey :self Pointer :Key "LeftMouseButton"))))
+                        (if (not Busy)
+                            (if (Interaction|IsOverHitTestVisibleWidget :self Pointer)
+                                (Interaction|PressPointerKey :self Pointer :Key "LeftMouseButton")))
                         (elif (and (<= Value 0.35) (Variables|Default|Get{Hand}TriggerPressed))
                             (Variables|Default|Set{Hand}TriggerPressed false)
                             (Interaction|ReleasePointerKey :self Pointer :Key "LeftMouseButton"))))

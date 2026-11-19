@@ -17,6 +17,7 @@
 #include "MotionControllerComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Base/WorkItem.h"
+#include "Base/HandGripInteraction.h"
 #include "Base/MainGameInstance.h"
 #include "Base/MainSettingsSave.h"
 
@@ -160,6 +161,14 @@ void AVirtualRealityPawn::Tick(float DeltaSeconds)
     {
         LeftHandMesh->SetVisibility(LeftHand->IsTracked());
         RightHandMesh->SetVisibility(RightHand->IsTracked());
+        if (!LeftHand->IsTracked())
+        {
+            CancelHandInteraction(true);
+        }
+        if (!RightHand->IsTracked())
+        {
+            CancelHandInteraction(false);
+        }
         if (!LeftHand->IsTracked() && LeftItem)
         {
             LeftItem->Release(FVector::ZeroVector, FVector::ZeroVector);
@@ -281,16 +290,104 @@ void AVirtualRealityPawn::MoveHeldItemsWithPlayer(const FTransform& PreviousPlay
     }
 }
 
-bool AVirtualRealityPawn::TryGrabItem(bool bLeftHand)
+bool AVirtualRealityPawn::IsHandBusy(bool bLeftHand) const
 {
-    AWorkItem* HeldItem = RightItem;
+    if (bLeftHand)
+    {
+        return IsValid(LeftItem) || IsValid(LeftHandInteraction);
+    }
+    return IsValid(RightItem) || IsValid(RightHandInteraction);
+}
+
+bool AVirtualRealityPawn::TryBeginHandInteraction(bool bLeftHand)
+{
+    if (IsHandBusy(bLeftHand))
+    {
+        return false;
+    }
     USceneComponent* Hand = RightHand;
     if (bLeftHand)
     {
-        HeldItem = LeftItem;
         Hand = LeftHand;
     }
-    if (HeldItem)
+    FCollisionObjectQueryParams Types;
+    Types.AddObjectTypesToQuery(ECC_WorldDynamic);
+    TArray<FOverlapResult> Overlaps;
+    FCollisionQueryParams Query;
+    Query.AddIgnoredActor(this);
+    GetWorld()->OverlapMultiByObjectType(Overlaps, Hand->GetComponentLocation(), FQuat::Identity,
+        Types, FCollisionShape::MakeSphere(GrabRadius), Query);
+    TArray<AActor*> Candidates;
+    for (const FOverlapResult& Overlap : Overlaps)
+    {
+        AActor* Candidate = Overlap.GetActor();
+        if (IsValid(Candidate) && Cast<IHandGripInteraction>(Candidate))
+        {
+            Candidates.AddUnique(Candidate);
+        }
+    }
+    Candidates.Sort([Hand](const AActor& First, const AActor& Second)
+    {
+        return FVector::DistSquared(First.GetActorLocation(), Hand->GetComponentLocation())
+            < FVector::DistSquared(Second.GetActorLocation(), Hand->GetComponentLocation());
+    });
+    for (AActor* Candidate : Candidates)
+    {
+        const EHandGripResult Result = Cast<IHandGripInteraction>(Candidate)->TryBeginHandGrip(this, bLeftHand);
+        if (Result == EHandGripResult::Started)
+        {
+            if (bLeftHand)
+            {
+                LeftHandInteraction = Candidate;
+            }
+            else
+            {
+                RightHandInteraction = Candidate;
+            }
+            return true;
+        }
+        if (Result == EHandGripResult::Blocked)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void AVirtualRealityPawn::EndHandInteraction(bool bLeftHand, bool bCancelled)
+{
+    AActor* Target = RightHandInteraction;
+    if (bLeftHand)
+    {
+        Target = LeftHandInteraction;
+        LeftHandInteraction = nullptr;
+    }
+    else
+    {
+        RightHandInteraction = nullptr;
+    }
+    if (IsValid(Target))
+    {
+        if (IHandGripInteraction* Interaction = Cast<IHandGripInteraction>(Target))
+        {
+            Interaction->EndHandGrip(this, bLeftHand, bCancelled);
+        }
+    }
+}
+
+void AVirtualRealityPawn::CancelHandInteraction(bool bLeftHand)
+{
+    EndHandInteraction(bLeftHand, true);
+}
+
+bool AVirtualRealityPawn::TryGrabItem(bool bLeftHand)
+{
+    USceneComponent* Hand = RightHand;
+    if (bLeftHand)
+    {
+        Hand = LeftHand;
+    }
+    if (IsHandBusy(bLeftHand))
     {
         return false;
     }
@@ -330,6 +427,7 @@ bool AVirtualRealityPawn::TryGrabItem(bool bLeftHand)
 
 void AVirtualRealityPawn::ReleaseItem(bool bLeftHand)
 {
+    EndHandInteraction(bLeftHand, false);
     if (bLeftHand)
     {
         if (IsValid(LeftItem))
@@ -344,6 +442,18 @@ void AVirtualRealityPawn::ReleaseItem(bool bLeftHand)
         {
             RightItem->Release(RightMotion.LinearVelocity, RightMotion.AngularVelocity);
         }
+        RightItem = nullptr;
+    }
+}
+
+void AVirtualRealityPawn::ForgetHeldItem(const AWorkItem* Item)
+{
+    if (LeftItem == Item)
+    {
+        LeftItem = nullptr;
+    }
+    if (RightItem == Item)
+    {
         RightItem = nullptr;
     }
 }
@@ -371,6 +481,8 @@ void AVirtualRealityPawn::SetItemUse(bool bLeftHand, bool bUse)
 
 void AVirtualRealityPawn::ReleaseAllItems()
 {
+    CancelHandInteraction(true);
+    CancelHandInteraction(false);
     SetItemUse(true, false);
     SetItemUse(false, false);
     ReleaseItem(true);
@@ -410,12 +522,15 @@ void AVirtualRealityPawn::ProcessGrip(bool bLeftHand, float Value)
     {
         Pressed = &bLeftGripPressed;
     }
-    if (!*Pressed && Value >= 0.65f)
+    if (!*Pressed && Value >= GripPressThreshold)
     {
         *Pressed = true;
-        TryGrabItem(bLeftHand);
+        if (!TryBeginHandInteraction(bLeftHand))
+        {
+            TryGrabItem(bLeftHand);
+        }
     }
-    else if (*Pressed && Value <= 0.35f)
+    else if (*Pressed && Value <= GripReleaseThreshold && Value < GripPressThreshold)
     {
         *Pressed = false;
         ReleaseItem(bLeftHand);
